@@ -138,20 +138,6 @@ function QuoteForm({
             />
           </label>
         </div>
-
-        <div className="quoteForm__field">
-          <label>
-            <Hash size={14} />
-            <span>N° Cotización</span>
-            <input
-              type="text"
-              value={data.quoteNumber || ""}
-              onChange={(e) => handleChange("quoteNumber", e.target.value)}
-              placeholder="Ej: COT-001"
-            />
-          </label>
-        </div>
-
         <div className="quoteForm__field">
           <label>
             <Briefcase size={14} />
