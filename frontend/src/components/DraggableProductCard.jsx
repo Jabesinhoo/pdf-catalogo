@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
 import { GripVertical } from 'lucide-react';
 import ProductCard from './ProductCard';
@@ -15,39 +15,54 @@ function DraggableProductCard({
 }) {
   const ref = useRef(null);
   
+  console.log(`🎯 Renderizando tarjeta: ${product.name} (índice: ${index})`);
+  
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.PRODUCT,
-    item: () => ({ id: product.id, index }),
+    item: () => {
+      console.log(`🖱️ INICIO ARRASTRE: ${product.name} (índice: ${index})`);
+      return { id: product.id, index };
+    },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
+    end: (item, monitor) => {
+      console.log(`✅ FIN ARRASTRE: ${product.name}`);
+    },
   });
 
   const [{ isOver, dragDirection }, drop] = useDrop({
     accept: ItemTypes.PRODUCT,
     hover: (item, monitor) => {
-      if (!ref.current) return;
+      if (!ref.current) {
+        console.log('❌ ref.current es null');
+        return;
+      }
       
       const dragIndex = item.index;
       const hoverIndex = index;
       
-      if (dragIndex === hoverIndex) return;
+      console.log(`🔄 HOVER: ${item.id} (dragIndex: ${dragIndex}) sobre ${product.id} (hoverIndex: ${hoverIndex})`);
+      
+      if (dragIndex === hoverIndex) {
+        console.log('⏭️ Mismo índice, ignorando');
+        return;
+      }
       
       const hoverBoundingRect = ref.current.getBoundingClientRect();
       const clientOffset = monitor.getClientOffset();
-      if (!clientOffset) return;
+      if (!clientOffset) {
+        console.log('❌ clientOffset es null');
+        return;
+      }
       
-      // Obtener las coordenadas del mouse relativas al elemento
       const hoverClientX = clientOffset.x - hoverBoundingRect.left;
       const hoverClientY = clientOffset.y - hoverBoundingRect.top;
       
-      // Umbrales para determinar si mover (50% del elemento)
       const hoverMiddleX = (hoverBoundingRect.right - hoverBoundingRect.left) / 2;
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
       
-      // Para grids, podemos mover en cualquier dirección
-      // Si el drag está antes y el mouse está en la mitad inferior/derecha, mover
-      // Si el drag está después y el mouse está en la mitad superior/izquierda, mover
+      console.log(`📍 Posición: X: ${hoverClientX}, Y: ${hoverClientY} | Medio X: ${hoverMiddleX}, Medio Y: ${hoverMiddleY}`);
       
       let shouldMove = false;
       
@@ -55,17 +70,22 @@ function DraggableProductCard({
         // Arrastrando hacia abajo/derecha
         if (hoverClientY > hoverMiddleY || hoverClientX > hoverMiddleX) {
           shouldMove = true;
+          console.log('⬇️ Mover hacia ABAJO/DERECHA');
         }
       } else {
         // Arrastrando hacia arriba/izquierda
         if (hoverClientY < hoverMiddleY || hoverClientX < hoverMiddleX) {
           shouldMove = true;
+          console.log('⬆️ Mover hacia ARRIBA/IZQUIERDA');
         }
       }
       
       if (shouldMove) {
+        console.log(`🔄 EJECUTANDO MOVE: de ${dragIndex} a ${hoverIndex}`);
         moveProduct(dragIndex, hoverIndex);
         item.index = hoverIndex;
+      } else {
+        console.log('⏸️ No mover');
       }
     },
     collect: (monitor) => ({
@@ -90,31 +110,23 @@ function DraggableProductCard({
     }),
   });
 
-  // Conectar drag y drop al mismo elemento
+  // Conectar drag y drop
   drag(drop(ref));
+
+  useEffect(() => {
+    console.log(`📦 Producto montado: ${product.name} (índice: ${index})`);
+    return () => {
+      console.log(`🗑️ Producto desmontado: ${product.name}`);
+    };
+  }, [product.name, index]);
 
   const opacity = isDragging ? 0.4 : 1;
   
-  // Estilos de borde según la dirección de hover
   let borderStyle = 'none';
-  let borderGradient = '';
   
   if (isOver) {
-    if (dragDirection === 'top-left') {
-      borderStyle = '2px solid var(--accent)';
-      borderGradient = 'linear-gradient(135deg, var(--accent) 0%, transparent 50%)';
-    } else if (dragDirection === 'top-right') {
-      borderStyle = '2px solid var(--accent)';
-      borderGradient = 'linear-gradient(225deg, var(--accent) 0%, transparent 50%)';
-    } else if (dragDirection === 'bottom-left') {
-      borderStyle = '2px solid var(--accent)';
-      borderGradient = 'linear-gradient(45deg, var(--accent) 0%, transparent 50%)';
-    } else if (dragDirection === 'bottom-right') {
-      borderStyle = '2px solid var(--accent)';
-      borderGradient = 'linear-gradient(315deg, var(--accent) 0%, transparent 50%)';
-    } else {
-      borderStyle = '2px solid var(--accent)';
-    }
+    borderStyle = '2px solid var(--accent)';
+    console.log(`✨ HOVER ACTIVO sobre: ${product.name}`);
   }
   
   const bgStyle = isOver ? 'rgba(138, 166, 70, 0.15)' : 'transparent';

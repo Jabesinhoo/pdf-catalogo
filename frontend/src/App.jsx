@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import "./App.css";
 import MainLayout from "./layouts/MainLayout";
 import Login from "./components/Login";
@@ -17,8 +19,6 @@ import { useTheme } from "./hooks/useTheme";
 import { createEmptyProduct } from "./utils/productFactory";
 import { apiFetch } from "./services/api";
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import DraggableProductCard from './components/DraggableProductCard';
 
 function fileToDataUrl(file) {
@@ -114,13 +114,17 @@ function App() {
   const [savedDocuments, setSavedDocuments] = useState([]);
   const [dbLoading, setDbLoading] = useState(false);
   const [undoToast, setUndoToast] = useState({ show: false, message: "", onUndo: null });
-  
+
   // Selección masiva para eliminar
   const [batchSelectedIds, setBatchSelectedIds] = useState([]);
 
   // Modales de confirmación
   const [showNewQuoteModal, setShowNewQuoteModal] = useState(false);
   const [showNewCatalogModal, setShowNewCatalogModal] = useState(false);
+
+  // Estados de ordenamiento
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc");
 
   const [quoteMeta, setQuoteMeta] = useState({
     companyName: "TECNONACHO S.A.S",
@@ -165,13 +169,13 @@ function App() {
     }
     checkAuth();
   }, []);
-  
+
   useSessionKeepAlive(authUser ? 5 * 60 * 1000 : null);
-  
+
   function handleOpenStats() {
     setShowStatsPanel(true);
   }
-  
+
   function handleLogin(userData) {
     setAuthUser(userData);
     localStorage.setItem('tecnocotizador_user', userData.username);
@@ -291,32 +295,175 @@ function App() {
     }
   }, [authUser]);
 
+  // ===== FUNCIONES PARA ORDENAMIENTO =====
+  const handleSortChange = (field, order) => {
+    setSortBy(field);
+    setSortOrder(order);
+  };
+
+  // ===== FUNCIONES PARA ORDENAMIENTO - VERSIÓN CORREGIDA =====
+  const parsePriceToNumber = (price) => {
+    if (!price) return 0;
+    if (typeof price === 'number') return price;
+
+    // Convertir a string y limpiar
+    let priceStr = String(price).trim();
+
+    // Eliminar símbolos de moneda
+    priceStr = priceStr.replace(/[$₡€£¥]/g, '').trim();
+
+    // Eliminar puntos y comas SOLO si son separadores de miles
+    // Detectar formato: si hay puntos y comas, determinar cuál es decimal
+    const hasDot = priceStr.includes('.');
+    const hasComma = priceStr.includes(',');
+
+    let cleanStr = priceStr;
+
+    if (hasDot && hasComma) {
+      // Formato mixto: la última aparición de punto o coma suele ser decimal
+      const lastDot = priceStr.lastIndexOf('.');
+      const lastComma = priceStr.lastIndexOf(',');
+
+      if (lastComma > lastDot) {
+        // La coma es decimal (formato español: 1.234.567,89)
+        cleanStr = priceStr.replace(/\./g, '').replace(',', '.');
+      } else {
+        // El punto es decimal (formato inglés: 1,234,567.89)
+        cleanStr = priceStr.replace(/,/g, '');
+      }
+    } else if (hasComma) {
+      // Solo tiene comas
+      const parts = priceStr.split(',');
+      if (parts.length === 2 && parts[1].length <= 2 && parts[1].length > 0) {
+        // Es decimal (ej: 1234,56)
+        cleanStr = priceStr.replace(',', '.');
+      } else {
+        // Son separadores de miles (ej: 1,234,567)
+        cleanStr = priceStr.replace(/,/g, '');
+      }
+    } else if (hasDot) {
+      // Solo tiene puntos
+      const parts = priceStr.split('.');
+      if (parts.length === 2 && parts[1].length <= 2 && parts[1].length > 0) {
+        // Es decimal (ej: 1234.56)
+        cleanStr = priceStr;
+      } else {
+        // Son separadores de miles (ej: 1.234.567)
+        cleanStr = priceStr.replace(/\./g, '');
+      }
+    }
+
+    // Eliminar cualquier caracter que no sea número o punto
+    cleanStr = cleanStr.replace(/[^\d.-]/g, '');
+
+    const number = parseFloat(cleanStr);
+    return isNaN(number) ? 0 : number;
+  };
+
+  const getSortedProducts = (productsToSort) => {
+    if (!productsToSort || productsToSort.length === 0) return [];
+
+    console.log('📊 Ordenando:', sortBy, sortOrder, 'Total productos:', productsToSort.length);
+
+    const sorted = [...productsToSort].sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case "name":
+          aValue = (a.name || "").toLowerCase();
+          bValue = (b.name || "").toLowerCase();
+          break;
+        case "price":
+          aValue = parsePriceToNumber(a.price);
+          bValue = parsePriceToNumber(b.price);
+          // Log para debug (opcional, puedes quitarlo después)
+          if (a.price && b.price) {
+            console.log(`💰 Comparando: ${a.name} (${a.price} -> ${aValue}) vs ${b.name} (${b.price} -> ${bValue})`);
+          }
+          break;
+        case "sku":
+          aValue = (a.sku || "").toLowerCase();
+          bValue = (b.sku || "").toLowerCase();
+          break;
+        default:
+          aValue = (a.name || "").toLowerCase();
+          bValue = (b.name || "").toLowerCase();
+      }
+
+      if (sortBy === "price") {
+        if (sortOrder === "asc") {
+          return aValue - bValue;
+        } else {
+          return bValue - aValue;
+        }
+      }
+
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
+
+    // Log de los primeros precios después de ordenar
+    if (sorted.length > 0 && sortBy === "price") {
+      console.log('📊 Primeros precios ordenados:', sorted.slice(0, 3).map(p => ({
+        name: p.name,
+        price: p.price,
+        numeric: parsePriceToNumber(p.price)
+      })));
+    }
+
+    return sorted;
+  };
+
   // ===== FUNCIONES PARA PRODUCTOS =====
+  const selectedProducts = useMemo(() => products.filter((p) => p.selected), [products]);
+  const selectedCount = selectedProducts.length;
+  const allSelected = products.length > 0 && products.every((p) => p.selected);
+
   const visibleProducts = useMemo(() => {
-    const term = localFilter.trim().toLowerCase();
-    if (!term) return products;
-    return products.filter((product) =>
+  const term = localFilter.trim().toLowerCase();
+  let filtered = products;
+
+  if (term) {
+    filtered = products.filter((product) =>
       String(product.name || "").toLowerCase().includes(term) ||
       String(product.sku || "").toLowerCase().includes(term) ||
       String(product.shortDescription || "").toLowerCase().includes(term) ||
       String(product.price || "").toLowerCase().includes(term)
     );
-  }, [products, localFilter]);
+  }
 
-  const selectedProducts = useMemo(() => products.filter((p) => p.selected), [products]);
-  const selectedCount = selectedProducts.length;
-  const allSelected = products.length > 0 && products.every((p) => p.selected);
+  // Si el ordenamiento es manual, devolver los productos sin ordenar
+  if (sortBy === "manual") {
+    return filtered;
+  }
 
-  // 👇 FUNCIÓN PARA ARRASTRAR Y REORDENAR PRODUCTOS (DENTRO DEL COMPONENTE)
+  return getSortedProducts(filtered);
+}, [products, localFilter, sortBy, sortOrder]);
+
   const moveProduct = (dragIndex, hoverIndex) => {
-    setProducts((prevProducts) => {
-      const newProducts = [...prevProducts];
-      const draggedProduct = newProducts[dragIndex];
-      newProducts.splice(dragIndex, 1);
-      newProducts.splice(hoverIndex, 0, draggedProduct);
-      return newProducts;
-    });
-  };
+  console.log(`🎯 MOVE PRODUCT: de ${dragIndex} a ${hoverIndex}`);
+  
+  // Cuando el usuario arrastra, desactivar el ordenamiento automático
+  // Cambiar a un modo "manual" (podrías crear un estado 'isDragging' o cambiar sortBy a null)
+  
+  setProducts((prevProducts) => {
+    const newProducts = [...prevProducts];
+    const draggedProduct = newProducts[dragIndex];
+    console.log(`📦 Producto arrastrado: ${draggedProduct?.name}`);
+    
+    newProducts.splice(dragIndex, 1);
+    newProducts.splice(hoverIndex, 0, draggedProduct);
+    
+    console.log('Productos después:', newProducts.map(p => p.name));
+    return newProducts;
+  });
+  
+  // Opcional: Cambiar temporalmente el orden a null para que no se reordene
+  // setSortBy(null); // Esto desactivaría el ordenamiento
+};
 
   async function fetchSearch(modeValue, value) {
     const data = await apiFetch("/products/search", {
@@ -424,7 +571,6 @@ function App() {
     setTimeout(() => setUndoToast((prev) => ({ ...prev, show: false })), 5000);
   }
 
-  // ===== FUNCIONES PARA SELECCIÓN MASIVA =====
   function handleSelectAllForBatch() {
     setBatchSelectedIds(products.map(p => p.id));
   }
@@ -464,7 +610,6 @@ function App() {
     }
   }
 
-  // ===== FUNCIÓN PARA APLICAR IVA EN MASA =====
   function handleApplyIvaToSelected(ivaType, ivaRate) {
     if (batchSelectedIds.length === 0) return;
 
@@ -572,7 +717,6 @@ function App() {
     setQuoteMeta((prev) => ({ ...prev, [field]: value }));
   }
 
-  // ===== FUNCIONES PARA NUEVA COTIZACIÓN/CATÁLOGO =====
   function openNewQuoteModal() {
     setShowNewQuoteModal(true);
   }
@@ -622,7 +766,6 @@ function App() {
     setShowNewCatalogModal(false);
   }
 
-  // ===== GENERAR PDF =====
   async function generatePdf(saveOnly = false) {
     try {
       setGenerating(true);
@@ -726,7 +869,6 @@ function App() {
     }
   }
 
-  // ===== FUNCIONES PARA DOCUMENTOS GUARDADOS =====
   function handleLoadDocument(doc) {
     if (products.length > 0 && !window.confirm("¿Cargar este documento? Se perderán los cambios actuales.")) return;
 
@@ -781,167 +923,178 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
+  // IMPORTANTE: Envolver TODO el contenido con DndProvider
   return (
-    <MainLayout
-      documentType={documentType}
-      onDocumentTypeChange={handleDocumentTypeChange}
-      theme={theme}
-      toggleTheme={toggleTheme}
-      user={authUser}
-      onLogout={handleLogout}
-      onOpenAdmin={() => setShowAdminPanel(true)}
-      onOpenStats={handleOpenStats}
-      isAdmin={authUser.role === 'admin'}
-    >
-      <SavedDocuments
-        documents={savedDocuments}
-        onLoad={handleLoadDocument}
-        onDelete={handleDeleteDocument}
-        onDownload={handleDownloadDocument}
-        onRegenerate={() => generatePdf(false)}
-        loading={dbLoading}
-        onRefresh={handleRefreshDocuments}
-      />
-
-      {documentType === "quote" && (
-        <QuoteForm
-          value={quoteMeta}
-          onChange={handleQuoteMetaChange}
-          generating={generating}
-          onGenerate={() => generatePdf(false)}
-        />
-      )}
-
-      <SearchPanel
-        mode={mode}
-        setMode={setMode}
-        queryText={queryText}
-        setQueryText={setQueryText}
-        orientation={orientation}
-        setOrientation={setOrientation}
-        loading={loading}
-        runSearch={runSearch}
-        resetCatalog={resetCatalog}
-        error={error}
-        categories={categories}
-        selectedCategories={selectedCategories}
-        setSelectedCategories={setSelectedCategories}
-        stockStatuses={stockStatuses}
-        setStockStatuses={setStockStatuses}
-      />
-
-      <SearchHistory items={searchHistory} />
-
-      <ResultsToolbar
-        count={visibleProducts.length}
-        totalCount={products.length}
-        selectedCount={selectedCount}
-        allSelected={allSelected}
-        localFilter={localFilter}
-        setLocalFilter={setLocalFilter}
-        onSelectAll={handleSelectAll}
-        onDeselectAll={handleDeselectAll}
-        onAddManual={handleCreateManualProduct}
-        onGeneratePdf={() => generatePdf(false)}
-        onSelectAllForBatch={handleSelectAllForBatch}
-        onDeselectAllForBatch={handleDeselectAllForBatch}
-        onDeleteBatch={handleDeleteBatch}
-        onNewQuote={openNewQuoteModal}
-        onNewCatalog={openNewCatalogModal}
-        batchSelectedCount={batchSelectedIds.length}
-        generating={generating}
+    <DndProvider backend={HTML5Backend}>
+      <MainLayout
         documentType={documentType}
-      />
+        onDocumentTypeChange={handleDocumentTypeChange}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        user={authUser}
+        onLogout={handleLogout}
+        onOpenAdmin={() => setShowAdminPanel(true)}
+        onOpenStats={handleOpenStats}
+        isAdmin={authUser.role === 'admin'}
+      >
+        <SavedDocuments
+          documents={savedDocuments}
+          onLoad={handleLoadDocument}
+          onDelete={handleDeleteDocument}
+          onDownload={handleDownloadDocument}
+          onRegenerate={() => generatePdf(false)}
+          loading={dbLoading}
+          onRefresh={handleRefreshDocuments}
+        />
 
-      <MassIvaEditor
-        batchSelectedIds={batchSelectedIds}
-        products={products}
-        onApplyIvaToSelected={handleApplyIvaToSelected}
-      />
-
-      <section className="productGrid">
-        {visibleProducts.length === 0 ? (
-          <div className="emptyState">
-            <h3>No hay productos</h3>
-            <p>Busca productos para comenzar</p>
-          </div>
-        ) : (
-          <DndProvider backend={HTML5Backend}>
-            {visibleProducts.map((product, index) => (
-              <DraggableProductCard
-                key={product.id}
-                index={index}
-                product={product}
-                moveProduct={moveProduct}
-                documentType={documentType}
-                checked={product.selected}
-                onToggle={() => handleToggleProduct(product.id)}
-                onEdit={() => handleOpenEdit(product)}
-                onDuplicate={() => handleDuplicateProduct(product)}
-                onRemove={() => handleRemoveProduct(product.id)}
-                onChange={(updates) => handleUpdateProduct(product.id, updates)}
-                userRole={authUser?.role}
-                isSelectedForBatch={batchSelectedIds.includes(product.id)}
-                onSelectForBatch={handleToggleBatchSelection}
-              />
-            ))}
-          </DndProvider>
+        {documentType === "quote" && (
+          <QuoteForm
+            value={quoteMeta}
+            onChange={handleQuoteMetaChange}
+            generating={generating}
+            onGenerate={() => generatePdf(false)}
+          />
         )}
-      </section>
 
-      {undoToast.show && (
-        <div className="undoToast">
-          <span>{undoToast.message}</span>
-          <button className="undoToastBtn" onClick={undoToast.onUndo}>Deshacer</button>
-        </div>
-      )}
-
-      <EditProductModal
-        isOpen={isEditOpen}
-        draft={draft}
-        onClose={handleCloseEdit}
-        onSave={handleSaveEdit}
-        onChange={handleDraftChange}
-        onImageChange={handleDraftImageChange}
-        onAddImage={handleAddImage}
-        onRemoveImage={handleRemoveImage}
-        documentType={documentType}
-        currency={quoteMeta.currency}
-      />
-
-      {showAdminPanel && (
-        <AdminPanel
-          user={authUser}
-          onClose={() => setShowAdminPanel(false)}
+        <SearchPanel
+          mode={mode}
+          setMode={setMode}
+          queryText={queryText}
+          setQueryText={setQueryText}
+          orientation={orientation}
+          setOrientation={setOrientation}
+          loading={loading}
+          runSearch={runSearch}
+          resetCatalog={resetCatalog}
+          error={error}
+          categories={categories}
+          selectedCategories={selectedCategories}
+          setSelectedCategories={setSelectedCategories}
+          stockStatuses={stockStatuses}
+          setStockStatuses={setStockStatuses}
         />
-      )}
 
-      {showStatsPanel && (
-        <AdminStats 
-          onClose={() => setShowStatsPanel(false)}
+        <SearchHistory items={searchHistory} />
+
+        <ResultsToolbar
+          count={visibleProducts.length}
+          totalCount={products.length}
+          selectedCount={selectedCount}
+          allSelected={allSelected}
+          localFilter={localFilter}
+          setLocalFilter={setLocalFilter}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onAddManual={handleCreateManualProduct}
+          onGeneratePdf={() => generatePdf(false)}
+          onSelectAllForBatch={handleSelectAllForBatch}
+          onDeselectAllForBatch={handleDeselectAllForBatch}
+          onDeleteBatch={handleDeleteBatch}
+          onNewQuote={openNewQuoteModal}
+          onNewCatalog={openNewCatalogModal}
+          batchSelectedCount={batchSelectedIds.length}
+          generating={generating}
+          documentType={documentType}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={handleSortChange}
         />
-      )}
 
-      <ConfirmModal
-        isOpen={showNewQuoteModal}
-        onClose={closeNewQuoteModal}
-        onConfirm={handleNewQuoteConfirm}
-        title="Nueva cotización"
-        message="¿Estás seguro? se iniciará una cotización en blanco."
-        confirmText="Sí, empezar nueva"
-        cancelText="Cancelar"
-      />
+        <MassIvaEditor
+          batchSelectedIds={batchSelectedIds}
+          products={products}
+          onApplyIvaToSelected={handleApplyIvaToSelected}
+        />
+        <section className="productGrid">
+  {visibleProducts.length === 0 ? (
+    <div className="emptyState">
+      <h3>No hay productos</h3>
+      <p>Busca productos para comenzar</p>
+    </div>
+  ) : (
+    <>
+      {console.log('📊 Renderizando grid con', visibleProducts.length, 'productos')}
+      <DndProvider backend={HTML5Backend}>
+        {visibleProducts.map((product, index) => {
+          console.log(`🎴 Renderizando producto: ${product.name} (índice: ${index})`);
+          return (
+            <DraggableProductCard
+              key={product.id}
+              index={index}
+              product={product}
+              moveProduct={moveProduct}
+              documentType={documentType}
+              checked={product.selected}
+              onToggle={() => handleToggleProduct(product.id)}
+              onEdit={() => handleOpenEdit(product)}
+              onDuplicate={() => handleDuplicateProduct(product)}
+              onRemove={() => handleRemoveProduct(product.id)}
+              onChange={(updates) => handleUpdateProduct(product.id, updates)}
+              userRole={authUser?.role}
+              isSelectedForBatch={batchSelectedIds.includes(product.id)}
+              onSelectForBatch={handleToggleBatchSelection}
+            />
+          );
+        })}
+      </DndProvider>
+    </>
+  )}
+</section>
 
-      <ConfirmModal
-        isOpen={showNewCatalogModal}
-        onClose={closeNewCatalogModal}
-        onConfirm={handleNewCatalogConfirm}
-        title="Nuevo catálogo"
-        message="¿Estás seguro? se iniciará un catálogo en blanco."
-        confirmText="Sí, empezar nuevo"
-        cancelText="Cancelar"
-      />
-    </MainLayout>
+        {undoToast.show && (
+          <div className="undoToast">
+            <span>{undoToast.message}</span>
+            <button className="undoToastBtn" onClick={undoToast.onUndo}>Deshacer</button>
+          </div>
+        )}
+
+        <EditProductModal
+          isOpen={isEditOpen}
+          draft={draft}
+          onClose={handleCloseEdit}
+          onSave={handleSaveEdit}
+          onChange={handleDraftChange}
+          onImageChange={handleDraftImageChange}
+          onAddImage={handleAddImage}
+          onRemoveImage={handleRemoveImage}
+          documentType={documentType}
+          currency={quoteMeta.currency}
+        />
+
+        {showAdminPanel && (
+          <AdminPanel
+            user={authUser}
+            onClose={() => setShowAdminPanel(false)}
+          />
+        )}
+
+        {showStatsPanel && (
+          <AdminStats
+            onClose={() => setShowStatsPanel(false)}
+          />
+        )}
+
+        <ConfirmModal
+          isOpen={showNewQuoteModal}
+          onClose={closeNewQuoteModal}
+          onConfirm={handleNewQuoteConfirm}
+          title="Nueva cotización"
+          message="¿Estás seguro? se iniciará una cotización en blanco."
+          confirmText="Sí, empezar nueva"
+          cancelText="Cancelar"
+        />
+
+        <ConfirmModal
+          isOpen={showNewCatalogModal}
+          onClose={closeNewCatalogModal}
+          onConfirm={handleNewCatalogConfirm}
+          title="Nuevo catálogo"
+          message="¿Estás seguro? se iniciará un catálogo en blanco."
+          confirmText="Sí, empezar nuevo"
+          cancelText="Cancelar"
+        />
+      </MainLayout>
+    </DndProvider>
   );
 }
 

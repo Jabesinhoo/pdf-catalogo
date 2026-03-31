@@ -1,4 +1,14 @@
-import { FileText, Plus, RefreshCw, Trash2, BookOpen } from "lucide-react";
+import { 
+  FileText, 
+  Plus, 
+  RefreshCw, 
+  Trash2, 
+  BookOpen, 
+  CheckSquare, 
+  Square,
+  Search
+} from "lucide-react";
+import SortControls from "./SortControls";
 
 function ResultsToolbar({
   count = 0,
@@ -15,98 +25,106 @@ function ResultsToolbar({
   onDeselectAllForBatch,
   onDeleteBatch,
   onNewQuote,
-  onNewCatalog,        // 👈 NUEVA PROPIEDAD para nuevo catálogo
+  onNewCatalog,
   batchSelectedCount = 0,
   generating = false,
   documentType = "catalog",
+  sortBy = "name",
+  sortOrder = "asc",
+  onSortChange,
 }) {
   return (
     <section className="toolbar">
-      <div>
-        <strong>{selectedCount}</strong> seleccionados de{" "}
-        <strong>{totalCount}</strong>
-        {count !== totalCount ? <> · visibles: <strong>{count}</strong></> : null}
-        {batchSelectedCount > 0 && (
-          <span className="batchInfo">
-            {" · "}
-            <strong>{batchSelectedCount}</strong> seleccionados para eliminar
-          </span>
-        )}
+      <div className="toolbar-left">
+        <div className="results-info">
+          <strong>{selectedCount}</strong> seleccionados de{" "}
+          <strong>{totalCount}</strong>
+          {count !== totalCount ? <> · visibles: <strong>{count}</strong></> : null}
+          {batchSelectedCount > 0 && (
+            <span className="batch-badge">
+              <Trash2 size={12} />
+              <strong>{batchSelectedCount}</strong> para eliminar
+            </span>
+          )}
+        </div>
+
+        <div className="toolbar-actions">
+          <button className="secondaryBtn smallBtn" onClick={onAddManual} type="button">
+            <Plus size={14} />
+            <span>Crear producto</span>
+          </button>
+
+          {documentType === "quote" && (
+            <button 
+              className="secondaryBtn smallBtn" 
+              onClick={onNewQuote} 
+              type="button"
+              title="Empezar una nueva cotización desde cero"
+            >
+              <RefreshCw size={14} />
+              <span>Nueva cotización</span>
+            </button>
+          )}
+
+          {documentType === "catalog" && (
+            <button 
+              className="secondaryBtn smallBtn" 
+              onClick={onNewCatalog} 
+              type="button"
+              title="Empezar un nuevo catálogo desde cero"
+            >
+              <BookOpen size={14} />
+              <span>Nuevo catálogo</span>
+            </button>
+          )}
+          
+          <button
+            className="secondaryBtn smallBtn"
+            onClick={allSelected ? onDeselectAll : onSelectAll}
+            type="button"
+          >
+            {allSelected ? "Deseleccionar todos (PDF)" : "Seleccionar todos (PDF)"}
+          </button>
+        </div>
       </div>
 
-      <div className="toolbarControls">
-        <input
-          type="text"
-          placeholder="Filtrar productos cargados"
-          value={localFilter}
-          onChange={(e) => setLocalFilter?.(e.target.value)}
+      <div className="toolbar-center">
+        <SortControls
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onSortChange={onSortChange}
         />
+      </div>
 
-        <button className="ghostBtn smallBtn" onClick={onAddManual} type="button">
-          <Plus size={14} />
-          <span>Crear producto</span>
-        </button>
-
-        {/* 👇 BOTÓN NUEVA COTIZACIÓN - Solo en modo cotización */}
-        {documentType === "quote" && (
-          <button 
-            className="secondaryBtn smallBtn" 
-            onClick={onNewQuote} 
-            type="button"
-            title="Empezar una nueva cotización desde cero"
-          >
-            <RefreshCw size={14} />
-            <span>Nueva cotización</span>
-          </button>
-        )}
-
-        {/* 👇 BOTÓN NUEVO CATÁLOGO - Solo en modo catálogo */}
-        {documentType === "catalog" && (
-          <button 
-            className="secondaryBtn smallBtn" 
-            onClick={onNewCatalog} 
-            type="button"
-            title="Empezar un nuevo catálogo desde cero"
-          >
-            <BookOpen size={14} />
-            <span>Nuevo catálogo</span>
-          </button>
-        )}
-        
-        <button
-          className="secondaryBtn smallBtn"
-          onClick={allSelected ? onDeselectAll : onSelectAll}
-          type="button"
-        >
-          {allSelected ? "Deseleccionar todos (PDF)" : "Seleccionar todos (PDF)"}
-        </button>
-
-        <button
-          className="ghostBtn smallBtn"
-          onClick={onSelectAllForBatch}
-          type="button"
-        >
-          Seleccionar todos 
-        </button>
-
-        <button
-          className="ghostBtn smallBtn"
-          onClick={onDeselectAllForBatch}
-          type="button"
-        >
-          Deseleccionar todos 
-        </button>
-        
-        {batchSelectedCount > 0 && (
+      <div className="toolbar-right">
+        <div className="toolbar-batch-actions">
           <button
-            className="dangerBtn smallBtn"
-            onClick={onDeleteBatch}
+            className="iconBtn small"
+            onClick={onSelectAllForBatch}
             type="button"
+            title="Seleccionar todos para eliminar"
           >
-            <Trash2 size={14} />
-            <span>Eliminar seleccionados ({batchSelectedCount})</span>
+            <CheckSquare size={16} />
           </button>
-        )}
+          <button
+            className="iconBtn small"
+            onClick={onDeselectAllForBatch}
+            type="button"
+            title="Deseleccionar todos"
+          >
+            <Square size={16} />
+          </button>
+          {batchSelectedCount > 0 && (
+            <button
+              className="iconBtn small dangerBtn"
+              onClick={onDeleteBatch}
+              type="button"
+              title={`Eliminar ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
 
         <button
           className="primaryBtn smallBtn"
@@ -117,6 +135,16 @@ function ResultsToolbar({
           <FileText size={14} />
           <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotización" : "Generar PDF"}</span>
         </button>
+      </div>
+
+      <div className="toolbar-search">
+        <Search size={16} className="search-icon" />
+        <input
+          type="text"
+          placeholder="Filtrar productos..."
+          value={localFilter}
+          onChange={(e) => setLocalFilter?.(e.target.value)}
+        />
       </div>
     </section>
   );

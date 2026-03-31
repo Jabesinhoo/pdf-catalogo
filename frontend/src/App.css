@@ -4293,6 +4293,235 @@ textarea::placeholder {
   justify-content: center;
   background: var(--bg);
 }
+/* ===== SORT CONTROLS ===== */
+.sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--soft);
+  padding: 6px 12px;
+  border-radius: 2rem;
+  border: 1px solid var(--border);
+}
+
+.sort-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sort-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 1.5rem;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sort-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sort-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.sort-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+
+/* ===== TOOLBAR MEJORADO ===== */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  flex-wrap: wrap;
+  width: 100%;
+  border-radius: var(--radius-xl);
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.toolbar-left,
+.toolbar-center,
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-batch-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.results-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.batch-badge {
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding: 2px 8px;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.toolbar-search {
+  min-width: 200px;
+}
+
+.toolbar-search input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 2rem;
+  border: 1px solid var(--border);
+  background: var(--input);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.toolbar-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar-left,
+  .toolbar-center,
+  .toolbar-right {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  
+  .sort-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .toolbar-left,
+  .toolbar-center,
+  .toolbar-right {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .toolbar-actions,
+  .toolbar-batch-actions {
+    justify-content: center;
+  }
+  
+  .sort-controls {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .sort-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .toolbar-search {
+    width: 100%;
+  }
+}
+/* Mejoras para drag and drop en móvil */
+@media (hover: none) and (pointer: coarse) {
+  .drag-handle {
+    padding: 8px !important;
+    opacity: 0.8 !important;
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 8px !important;
+  }
+  
+  .drag-handle svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .draggable-product-card {
+    cursor: default !important;
+    touch-action: pan-y pinch-zoom !important;
+  }
+}
+
+/* Aumentar área táctil del handle en todos los dispositivos */
+.drag-handle {
+  padding: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  z-index: 20;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Feedback visual al arrastrar */
+.draggable-product-card.dragging {
+  opacity: 0.5;
+  transform: scale(0.98);
+  transition: all 0.1s ease;
+  z-index: 1000;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Asegurar que el handle sea clickeable */
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
 
 .loadingSpinner {
   width: 50px;
