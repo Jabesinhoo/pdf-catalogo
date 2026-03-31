@@ -1,0 +1,92 @@
+[33m1dda00b[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m HEAD@{0}: commit: Initial clean commit
+[33mccd7ac4[m HEAD@{1}: reset: moving to HEAD~1
+[33m60c051d[m HEAD@{2}: commit: Clean commit without node_modules
+[33mccd7ac4[m HEAD@{3}: reset: moving to HEAD~1
+[33mca65454[m HEAD@{4}: commit: Initial commit without node_modules
+[33mccd7ac4[m HEAD@{5}: reset: moving to HEAD~1
+[33ma017488[m HEAD@{6}: commit: Actualizacion de Draggable
+[33mccd7ac4[m HEAD@{7}: commit: Actualizacion de las porquerias de pool que hice
+[33m32ea793[m HEAD@{8}: commit: Update app.js
+[33m59ad65e[m HEAD@{9}: commit: Actualizacion de cache, stats y cookies
+[33m504b068[m HEAD@{10}: commit: Actualizacion de icono
+[33m4e16f91[m HEAD@{11}: commit: Actualzacion de disponibilidad en el product card
+[33m88a4d3b[m HEAD@{12}: commit: Actualizacion
+[33mf4f5a4d[m HEAD@{13}: commit: actualizacion
+[33m7b3a792[m HEAD@{14}: commit: Actualizacion de cantidades
+[33m83442ac[m HEAD@{15}: commit: Actualizaciones de intefaz de catalogo y prooducto
+[33mf2f8803[m HEAD@{16}: commit: Actualizacion de catalogo
+[33mba1887b[m HEAD@{17}: commit: Update SearchPanel.jsx
+[33m3cd1596[m HEAD@{18}: commit: Actualizacion iva seleccion multiple
+[33m799ea1f[m HEAD@{19}: commit: Actualizacion para catalogo
+[33m4878f69[m HEAD@{20}: commit: Actualizacion de btn de nueva cotizacion
+[33m474635c[m HEAD@{21}: commit: Update App.css
+[33m9b44722[m HEAD@{22}: commit: Modo oscuro login
+[33m4b169f7[m HEAD@{23}: commit: Update SidebarDocumentNav.jsx
+[33m75f310e[m HEAD@{24}: commit: nota de pago editable en cotizaciones y mejoras visuales
+[33m6009085[m HEAD@{25}: commit: Update quoteTemplate.js
+[33m9be795e[m HEAD@{26}: commit: Update quoteTemplate.js
+[33m2acbc61[m HEAD@{27}: commit: Actualizacion de funciones seleccionar todos y eliminar todos
+[33m5d64756[m HEAD@{28}: commit: Actualizacion de descarga doc
+[33mcee2380[m HEAD@{29}: commit: Actualizacion
+[33m1cd7a75[m HEAD@{30}: commit: Update App.jsx
+[33m4dcec68[m HEAD@{31}: commit: Actualizacion de descarga de documentos guardados
+[33mdf6c2c4[m HEAD@{32}: commit: Actualizacion de descarga
+[33m2f1fdb2[m HEAD@{33}: commit: Actualizacion cambiar rol
+[33m95e97a0[m HEAD@{34}: commit: mejoras en administración de usuarios y funcionalidades
+[33m52ecb47[m HEAD@{35}: commit: Actualizacion de funcion de reeemplazar todo
+[33m4d72aff[m HEAD@{36}: commit: Actualizacion
+[33m03de84f[m HEAD@{37}: commit: Update adminController.js
+[33m0b14d22[m HEAD@{38}: commit: Actualizacion
+[33m0817635[m HEAD@{39}: commit: Update adminController.js
+[33ma41912c[m HEAD@{40}: commit: Actualizacion funcion eliminar usuario
+[33mebcac9c[m HEAD@{41}: commit: Update AdminPanel.jsx
+[33mfd27452[m HEAD@{42}: commit: actualizaciones
+[33m38a1e59[m HEAD@{43}: commit: Update rateLimiter.js
+[33mf8f6cef[m HEAD@{44}: commit: Update app.js
+[33mfcf3997[m HEAD@{45}: commit: Update authController.js
+[33m3d074bc[m HEAD@{46}: commit: Update session.js
+[33m0763247[m HEAD@{47}: commit: Update authRoutes.js
+[33m13f4ecb[m HEAD@{48}: commit: Update authRoutes.js
+[33mc30bad5[m HEAD@{49}: commit: Update deploy.yml
+[33mc49ffca[m HEAD@{50}: commit: Actualizacion de iva
+[33mdbbb671[m HEAD@{51}: commit: Update quoteTemplate.js
+[33m06135c7[m HEAD@{52}: commit: Actualizacion
+[33maf94764[m HEAD@{53}: commit: Update deploy.yml
+[33m1304cde[m HEAD@{54}: commit: Update deploy.yml
+[33med1ac75[m HEAD@{55}: commit: Update deploy.yml
+[33m5f5d352[m HEAD@{56}: commit: Update deploy.yml
+[33m53acf7f[m HEAD@{57}: commit: Update deploy.yml
+[33m5c630b2[m HEAD@{58}: commit: Update deploy.yml
+[33m2e6102c[m HEAD@{59}: commit (merge): Update deploy.yml
+[33m4647413[m HEAD@{60}: commit: Update deploy.yml
+[33mc6b77a9[m HEAD@{61}: reset: moving to HEAD
+[33mc6b77a9[m HEAD@{62}: commit: Update deploy.yml
+[33m967f3d0[m HEAD@{63}: commit: Update Login.jsx
+[33mb54fec8[m HEAD@{64}: commit: Actulizacion
+[33m71e07bd[m HEAD@{65}: commit: deploy
+[33m9dcc5b7[m HEAD@{66}: commit: Actualizacion de local storage a bd
+[33mcb84bdd[m HEAD@{67}: commit: TecnoCotizador - Generador Profesional de Catálogos y Cotizaciones PDF
+[33m80c2589[m HEAD@{68}: commit: Actualizacion de interfaces
+[33m1470204[m HEAD@{69}: commit: Deshacer eliminados
+[33mbc9c3a3[m HEAD@{70}: commit: Actualizacion
+[33m31672d5[m HEAD@{71}: commit: Actualizacion catalogo
+[33macee477[m HEAD@{72}: commit: Update App.jsx
+[33m17958d3[m HEAD@{73}: commit: Update QuoteForm.jsx
+[33m82c7bb8[m HEAD@{74}: commit: a
+[33m60a3435[m HEAD@{75}: commit: Actualizacion
+[33m946f5d6[m HEAD@{76}: commit: ac
+[33m673bf12[m HEAD@{77}: commit: Update productController.js
+[33m5ca0a77[m HEAD@{78}: commit: Update quoteTemplate.js
+[33m1d015c8[m HEAD@{79}: commit: Update pdfService.js
+[33maaf77f7[m HEAD@{80}: commit: Update deploy.yml
+[33md945f27[m HEAD@{81}: commit: actualizacion
+[33m72a5d95[m HEAD@{82}: commit: actualizacion de deploy
+[33ma5f363b[m HEAD@{83}: commit: acturalizaicon deploy
+[33mcff0449[m HEAD@{84}: pull --ff --recurse-submodules --progress origin: Merge made by the 'ort' strategy.
+[33m0912241[m HEAD@{85}: commit: actualziacion
+[33mffa9116[m HEAD@{86}: commit: actualziaaicones
+[33mbdbe881[m HEAD@{87}: commit: Actualizacion
+[33m491ed95[m HEAD@{88}: commit: actualizaciones que no sirven pa nada
+[33maee78b5[m HEAD@{89}: commit: Actualizacion
+[33mb90b923[m HEAD@{90}: commit: proyecto cotizador y catalogo
+[33m2be9f1b[m HEAD@{91}: clone: from https://github.com/Jabesinhoo/pdf-catalogo.git

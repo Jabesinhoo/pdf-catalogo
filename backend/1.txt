@@ -1,0 +1,8 @@
+PORT=4017
+SITE_ORIGIN=https://tecnonacho.com
+BROWSER_PATH=C:\Program Files\Google\Chrome\Application\chrome.exe
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tecnocotizador
+DB_USER=postgres
+DB_PASSWORD=1235

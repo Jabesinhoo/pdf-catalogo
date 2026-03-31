@@ -1,0 +1,113 @@
+name: Deploy TecnoCotizador
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_DIR: ${{ secrets.VPS_APP_DIR }}
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      WEB_CURRENT: /var/www/tecnocotizador/current
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          install -m 700 -d ~/.ssh
+
+          if [ -n "${{ secrets.VPS_SSH_KEY }}" ]; then
+            echo "🔑 Usando VPS_SSH_KEY"
+            echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          elif [ -n "${{ secrets.VPS_SSH_KEY_B64 }}" ]; then
+            echo "🔑 Usando VPS_SSH_KEY_B64"
+            echo "${{ secrets.VPS_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/id_ed25519
+          else
+            echo "❌ No hay llave SSH configurada"
+            exit 1
+          fi
+
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 644 ~/.ssh/known_hosts
+
+          echo "🔍 Probando conexión SSH..."
+          ssh -o IdentitiesOnly=yes \
+              -o ConnectTimeout=5 \
+              -i ~/.ssh/id_ed25519 \
+              -p "$VPS_PORT" \
+              "$VPS_USER@$VPS_HOST" \
+              "echo '✅ SSH OK'"
+
+      - name: Deploy
+        shell: bash
+        run: |
+          ssh -o IdentitiesOnly=yes \
+              -i ~/.ssh/id_ed25519 \
+              -p "$VPS_PORT" \
+              "$VPS_USER@$VPS_HOST" \
+              "APP_DIR='$APP_DIR' WEB_CURRENT='$WEB_CURRENT' REPO='https://github.com/${{ github.repository }}.git' bash -se <<'ENDSSH'
+            set -Eeuo pipefail
+            echo '🚀 Iniciando deploy...'
+
+            TIMESTAMP=\"\$(date +%Y%m%d-%H%M%S)\"
+            RELEASE_DIR=\"\$APP_DIR/releases/\$TIMESTAMP\"
+            CURRENT_DIR=\"\$APP_DIR/current\"
+
+            echo \"📦 Creando release \$TIMESTAMP\"
+            mkdir -p \"\$RELEASE_DIR\"
+            mkdir -p \"\$APP_DIR/releases\"
+            mkdir -p /var/www/tecnocotizador
+
+            echo \"📂 Clonando repositorio...\"
+            git clone --depth 1 \"\$REPO\" \"\$RELEASE_DIR\"
+
+            echo \"🔗 Enlazando .env\"
+            ln -sfn \"\$APP_DIR/shared/backend.env\" \"\$RELEASE_DIR/backend/.env\"
+
+            echo \"📦 Instalando backend...\"
+            cd \"\$RELEASE_DIR/backend\"
+            npm ci --omit=dev
+
+            echo \"📦 Instalando frontend...\"
+            cd \"\$RELEASE_DIR/frontend\"
+            npm ci
+            npm run build
+
+            echo \"🔍 Verificando build frontend...\"
+            test -f \"\$RELEASE_DIR/frontend/dist/index.html\"
+
+            echo \"🔗 Actualizando enlace current del proyecto...\"
+            ln -sfn \"\$RELEASE_DIR\" \"\$CURRENT_DIR\"
+
+            echo \"🔗 Corrigiendo symlink público del frontend...\"
+            FRONTEND_DIST=\"\$(readlink -f \"\$RELEASE_DIR/frontend/dist\")\"
+            test -d \"\$FRONTEND_DIST\"
+
+            rm -f \"\$WEB_CURRENT\"
+            ln -s \"\$FRONTEND_DIST\" \"\$WEB_CURRENT\"
+
+            echo \"🔍 Verificando symlink público...\"
+            test -f \"\$WEB_CURRENT/index.html\"
+
+            echo \"🔄 Reiniciando PM2\"
+            if pm2 describe tecnocotizador-backend > /dev/null 2>&1; then
+              pm2 restart tecnocotizador-backend --update-env
+            else
+              pm2 start \"\$APP_DIR/shared/ecosystem.config.js\" --env production
+            fi
+
+            pm2 save
+
+            echo \"✅ Deploy completado en \$TIMESTAMP\"
+          ENDSSH"
