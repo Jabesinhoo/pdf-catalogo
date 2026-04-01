@@ -8,6 +8,8 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 function buildCategoryTree(categories = []) {
@@ -206,6 +208,30 @@ function SearchPanel({
 
   const canSearch = queryText.trim() || selectedCategories.length > 0;
 
+  // Función para obtener todas las categorías seleccionables (todas las slugs)
+  const getAllCategorySlugs = (nodes) => {
+    let slugs = [];
+    const traverse = (nodeList) => {
+      nodeList.forEach(node => {
+        if (node.slug) slugs.push(node.slug);
+        if (node.children && node.children.length) traverse(node.children);
+      });
+    };
+    traverse(nodes);
+    return slugs;
+  };
+
+  // Seleccionar todas las categorías
+  const handleSelectAllCategories = () => {
+    const allSlugs = getAllCategorySlugs(categoryTree);
+    setSelectedCategories(allSlugs);
+  };
+
+  // Deseleccionar todas las categorías
+  const handleDeselectAllCategories = () => {
+    setSelectedCategories([]);
+  };
+
   function toggleCategory(slug) {
     setSelectedCategories((prev) =>
       prev.includes(slug)
@@ -384,8 +410,27 @@ function SearchPanel({
           </div>
         </div>
 
-        {/* 👇 AGREGAR BOTONES DE SELECCIÓN MASIVA */}
-        
+        {/* 👇 BOTONES DE SELECCIÓN MASIVA */}
+        <div className="searchPanel__bulkActions">
+          <button
+            type="button"
+            className="bulkSelectBtn"
+            onClick={handleSelectAllCategories}
+            title="Seleccionar todas las categorías"
+          >
+            <CheckSquare size={14} />
+            <span>Seleccionar todas</span>
+          </button>
+          <button
+            type="button"
+            className="bulkSelectBtn"
+            onClick={handleDeselectAllCategories}
+            title="Deseleccionar todas las categorías"
+          >
+            <Square size={14} />
+            <span>Deseleccionar todas</span>
+          </button>
+        </div>
 
         {categoriesOpen ? (
           <>
