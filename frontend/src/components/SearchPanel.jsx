@@ -196,6 +196,7 @@ function SearchPanel({
   stockStatuses = [],
   setStockStatuses,
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [categoriesOpen, setCategoriesOpen] = useState(true);
   const [expandedMap, setExpandedMap] = useState({});
@@ -208,7 +209,6 @@ function SearchPanel({
 
   const canSearch = queryText.trim() || selectedCategories.length > 0;
 
-  // Función para obtener todas las categorías seleccionables (todas las slugs)
   const getAllCategorySlugs = (nodes) => {
     let slugs = [];
     const traverse = (nodeList) => {
@@ -221,13 +221,11 @@ function SearchPanel({
     return slugs;
   };
 
-  // Seleccionar todas las categorías
   const handleSelectAllCategories = () => {
     const allSlugs = getAllCategorySlugs(categoryTree);
     setSelectedCategories(allSlugs);
   };
 
-  // Deseleccionar todas las categorías
   const handleDeselectAllCategories = () => {
     setSelectedCategories([]);
   };
@@ -268,207 +266,228 @@ function SearchPanel({
 
   return (
     <section className="panel searchPanel">
-      <div className="panelHeader">
+      <div 
+        className="panelHeader" 
+        style={{ cursor: "pointer" }} 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+      >
         <div>
           <h3>Buscar productos</h3>
           <p>Busca por URL, nombre, SKU o seleccionando categorías.</p>
         </div>
+        <button 
+          type="button" 
+          className="collapseBtn"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsCollapsed(!isCollapsed);
+          }}
+          aria-label={isCollapsed ? "Expandir" : "Colapsar"}
+        >
+          <ChevronDown size={20} style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }} />
+        </button>
       </div>
 
-      <div className="searchPanel__topActions">
-        <div className="searchPanel__actionButtons">
-          <button
-            className="primaryBtn"
-            onClick={() => runSearch({ append: false, replace: true })}
-            disabled={loading || !canSearch}
-            type="button"
-          >
-            <Search size={16} strokeWidth={2} />
-            <span>{loading ? "Buscando..." : "Nueva búsqueda"}</span>
-          </button>
-
-          <button
-            className="secondaryBtn"
-            onClick={() => runSearch({ append: true })}
-            disabled={loading || !canSearch}
-            type="button"
-          >
-            <Plus size={16} strokeWidth={2} />
-            <span>{loading ? "Agregando..." : "Agregar productos a los anteriores"}</span>
-          </button>
-
-          <button className="ghostBtn" onClick={resetCatalog} type="button">
-            <RotateCcw size={16} strokeWidth={2} />
-            <span>Limpiar todo</span> 
-          </button>
-        </div>
-
-        <div className="searchPanel__orientationBox">
-          <p className="fieldLabel">Orientación PDF</p>
-
-          <div className="searchPanel__segmented">
-            {orientationOptions.map((item) => (
+      {!isCollapsed && (
+        <>
+          {/* CATEGORÍAS - PRIMERO */}
+          <div className="searchPanel__section">
+            <div className="searchPanel__sectionHead">
               <button
-                key={item.value}
                 type="button"
-                className={
-                  orientation === item.value
-                    ? "searchPanel__segmentedBtn active"
-                    : "searchPanel__segmentedBtn"
-                }
-                onClick={() => setOrientation(item.value)}
+                className="searchPanel__collapseBtn"
+                onClick={() => setCategoriesOpen((prev) => !prev)}
               >
-                <span>{item.label}</span>
+                {categoriesOpen ? (
+                  <ChevronDown size={16} strokeWidth={2} />
+                ) : (
+                  <ChevronRight size={16} strokeWidth={2} />
+                )}
+                <span>Categorías de Tecnonacho</span>
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
 
-      <div className="searchPanel__section">
-        <p className="fieldLabel">Modo de búsqueda</p>
+              <div className="searchPanel__sectionMeta">
+                <span>{categories.length} categorías</span>
+                <span>{selectedCategories.length} seleccionadas</span>
+              </div>
+            </div>
 
-        <div className="tabs">
-          {modeOptions.map((item) => (
-            <button
-              key={item.value}
-              className={mode === item.value ? "tab active" : "tab"}
-              onClick={() => setMode(item.value)}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+            <div className="searchPanel__bulkActions">
+              <button
+                type="button"
+                className="bulkSelectBtn"
+                onClick={handleSelectAllCategories}
+                title="Seleccionar todas las categorías"
+              >
+                <CheckSquare size={14} />
+                <span>Seleccionar todas</span>
+              </button>
+              <button
+                type="button"
+                className="bulkSelectBtn"
+                onClick={handleDeselectAllCategories}
+                title="Deseleccionar todas las categorías"
+              >
+                <Square size={14} />
+                <span>Deseleccionar todas</span>
+              </button>
+            </div>
 
-        <label className="fieldLabel">Valor de búsqueda</label>
-        <textarea
-          className="queryTextarea"
-          rows="4"
-          placeholder={placeholder}
-          value={queryText}
-          onChange={(e) => setQueryText(e.target.value)}
-        />
-      </div>
-
-      <div className="searchPanel__section">
-        <div className="searchPanel__sectionHead">
-          <div className="searchPanel__sectionTitle">
-            <SlidersHorizontal size={16} strokeWidth={2} />
-            <span>Filtros de stock</span>
-          </div>
-        </div>
-
-        <div className="chipsWrap">
-          <label className="chipCheck">
-            <input
-              type="checkbox"
-              checked={stockStatuses.includes("instock")}
-              onChange={() => toggleStock("instock")}
-            />
-            <span>Con stock</span>
-          </label>
-
-          <label className="chipCheck">
-            <input
-              type="checkbox"
-              checked={stockStatuses.includes("outofstock")}
-              onChange={() => toggleStock("outofstock")}
-            />
-            <span>Sin stock</span>
-          </label>
-
-          <label className="chipCheck">
-            <input
-              type="checkbox"
-              checked={stockStatuses.includes("onbackorder")}
-              onChange={() => toggleStock("onbackorder")}
-            />
-            <span>Backorder</span>
-          </label>
-        </div>
-      </div>
-
-      <div className="searchPanel__section">
-        <div className="searchPanel__sectionHead">
-          <button
-            type="button"
-            className="searchPanel__collapseBtn"
-            onClick={() => setCategoriesOpen((prev) => !prev)}
-          >
             {categoriesOpen ? (
-              <ChevronDown size={16} strokeWidth={2} />
-            ) : (
-              <ChevronRight size={16} strokeWidth={2} />
-            )}
-            <span>Categorías de Tecnonacho</span>
-          </button>
-
-          <div className="searchPanel__sectionMeta">
-            <span>{categories.length} categorías</span>
-            <span>{selectedCategories.length} seleccionadas</span>
-          </div>
-        </div>
-
-        {/* 👇 BOTONES DE SELECCIÓN MASIVA */}
-        <div className="searchPanel__bulkActions">
-          <button
-            type="button"
-            className="bulkSelectBtn"
-            onClick={handleSelectAllCategories}
-            title="Seleccionar todas las categorías"
-          >
-            <CheckSquare size={14} />
-            <span>Seleccionar todas</span>
-          </button>
-          <button
-            type="button"
-            className="bulkSelectBtn"
-            onClick={handleDeselectAllCategories}
-            title="Deseleccionar todas las categorías"
-          >
-            <Square size={14} />
-            <span>Deseleccionar todas</span>
-          </button>
-        </div>
-
-        {categoriesOpen ? (
-          <>
-            <div className="searchPanel__categorySearch">
-              <Search size={16} strokeWidth={2} />
-              <input
-                type="text"
-                placeholder="Buscar categoría por nombre o slug"
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-              />
-            </div>
-
-            <div className="searchPanel__categoriesWrap">
-              {filteredTree.length === 0 ? (
-                <div className="searchPanel__emptyCategories">
-                  <FileSearch size={18} strokeWidth={2} />
-                  <p>No encontré categorías con ese filtro.</p>
-                </div>
-              ) : (
-                filteredTree.map((node) => (
-                  <CategoryNode
-                    key={node.id}
-                    node={node}
-                    expandedMap={expandedMap}
-                    setExpandedMap={setExpandedMap}
-                    selectedCategories={selectedCategories}
-                    onToggleCategory={toggleCategory}
-                    forceOpen={Boolean(categoryFilter.trim())}
+              <>
+                <div className="searchPanel__categorySearch">
+                  <Search size={16} strokeWidth={2} />
+                  <input
+                    type="text"
+                    placeholder="Buscar categoría por nombre o slug"
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
                   />
-                ))
-              )}
-            </div>
-          </>
-        ) : null}
-      </div>
+                </div>
 
-      {error ? <p className="error">{error}</p> : null}
+                <div className="searchPanel__categoriesWrap">
+                  {filteredTree.length === 0 ? (
+                    <div className="searchPanel__emptyCategories">
+                      <FileSearch size={18} strokeWidth={2} />
+                      <p>No encontré categorías con ese filtro.</p>
+                    </div>
+                  ) : (
+                    filteredTree.map((node) => (
+                      <CategoryNode
+                        key={node.id}
+                        node={node}
+                        expandedMap={expandedMap}
+                        setExpandedMap={setExpandedMap}
+                        selectedCategories={selectedCategories}
+                        onToggleCategory={toggleCategory}
+                        forceOpen={Boolean(categoryFilter.trim())}
+                      />
+                    ))
+                  )}
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          {/* FILTROS DE STOCK */}
+          <div className="searchPanel__section">
+            <div className="searchPanel__sectionHead">
+              <div className="searchPanel__sectionTitle">
+                <SlidersHorizontal size={16} strokeWidth={2} />
+                <span>Filtros de stock</span>
+              </div>
+            </div>
+
+            <div className="chipsWrap">
+              <label className="chipCheck">
+                <input
+                  type="checkbox"
+                  checked={stockStatuses.includes("instock")}
+                  onChange={() => toggleStock("instock")}
+                />
+                <span>Con stock</span>
+              </label>
+
+              <label className="chipCheck">
+                <input
+                  type="checkbox"
+                  checked={stockStatuses.includes("outofstock")}
+                  onChange={() => toggleStock("outofstock")}
+                />
+                <span>Sin stock</span>
+              </label>
+
+              <label className="chipCheck">
+                <input
+                  type="checkbox"
+                  checked={stockStatuses.includes("onbackorder")}
+                  onChange={() => toggleStock("onbackorder")}
+                />
+                <span>Backorder</span>
+              </label>
+            </div>
+          </div>
+
+          {/* BÚSQUEDA POR URL/NOMBRE/SKU - ABAJO */}
+          <div className="searchPanel__topActions">
+            <div className="searchPanel__actionButtons">
+              <button
+                className="primaryBtn"
+                onClick={() => runSearch({ append: false, replace: true })}
+                disabled={loading || !canSearch}
+                type="button"
+              >
+                <Search size={16} strokeWidth={2} />
+                <span>{loading ? "Buscando..." : "Nueva búsqueda"}</span>
+              </button>
+
+              <button
+                className="secondaryBtn"
+                onClick={() => runSearch({ append: true })}
+                disabled={loading || !canSearch}
+                type="button"
+              >
+                <Plus size={16} strokeWidth={2} />
+                <span>{loading ? "Agregando..." : "Agregar productos a los anteriores"}</span>
+              </button>
+
+              <button className="ghostBtn" onClick={resetCatalog} type="button">
+                <RotateCcw size={16} strokeWidth={2} />
+                <span>Limpiar todo</span> 
+              </button>
+            </div>
+
+            <div className="searchPanel__orientationBox">
+              <p className="fieldLabel">Orientación PDF</p>
+
+              <div className="searchPanel__segmented">
+                {orientationOptions.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={
+                      orientation === item.value
+                        ? "searchPanel__segmentedBtn active"
+                        : "searchPanel__segmentedBtn"
+                    }
+                    onClick={() => setOrientation(item.value)}
+                  >
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="searchPanel__section">
+            <p className="fieldLabel">Modo de búsqueda</p>
+
+            <div className="tabs">
+              {modeOptions.map((item) => (
+                <button
+                  key={item.value}
+                  className={mode === item.value ? "tab active" : "tab"}
+                  onClick={() => setMode(item.value)}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="fieldLabel">Valor de búsqueda</label>
+            <textarea
+              className="queryTextarea"
+              rows="4"
+              placeholder={placeholder}
+              value={queryText}
+              onChange={(e) => setQueryText(e.target.value)}
+            />
+          </div>
+
+          {error ? <p className="error">{error}</p> : null}
+        </>
+      )}
     </section>
   );
 }

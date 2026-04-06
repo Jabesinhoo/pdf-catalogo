@@ -18,13 +18,13 @@ function ErrorModal({ isOpen, onClose, title = "Error", errors }) {
       return (
         <ul className="errorList">
           {errors.map((err, idx) => (
-            <li key={idx}> {formatError(err)}</li>
+            <li key={idx}>⚠️ {formatError(err)}</li>
           ))}
         </ul>
       );
     }
     
-    return <p className="errorMessage">{formatError(errors)}</p>;
+    return <p className="errorMessage">⚠️ {formatError(errors)}</p>;
   };
 
   return (

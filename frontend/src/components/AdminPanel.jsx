@@ -12,7 +12,8 @@ import {
   X,
   AlertCircle,
   Trash2,
-  KeyRound
+  KeyRound,
+  CheckCircle
 } from 'lucide-react';
 import ErrorModal from './ErrorModal';
 
@@ -21,6 +22,14 @@ function AdminPanel({ user, onClose }) {
   const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [errorModal, setErrorModal] = useState({ open: false, errors: null });
+  const [successModal, setSuccessModal] = useState({ open: false, message: '' });
+  
+  // Estado para el modal de confirmación de eliminación
+  const [confirmDeleteModal, setConfirmDeleteModal] = useState({ 
+    open: false, 
+    userId: null, 
+    username: '' 
+  });
   
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -64,9 +73,7 @@ function AdminPanel({ user, onClose }) {
   useEffect(() => {
     loadUsers();
   }, []);
-useEffect(() => {
- 
-}, [showPasswordModal, showRoleModal]);
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -92,6 +99,7 @@ useEffect(() => {
         setShowCreateForm(false);
         setNewUser({ username: '', email: '', password: '', fullName: '', role: 'asesor' });
         loadUsers();
+        setSuccessModal({ open: true, message: 'Usuario creado exitosamente' });
       } else {
         setErrorModal({ open: true, errors: data.errors || data.message || 'Error al crear usuario' });
       }
@@ -115,6 +123,10 @@ useEffect(() => {
       
       if (data.success) {
         loadUsers();
+        setSuccessModal({ 
+          open: true, 
+          message: `Usuario ${!currentStatus ? 'activado' : 'desactivado'} exitosamente` 
+        });
       } else {
         setErrorModal({ open: true, errors: data.message || 'Error cambiando estado' });
       }
@@ -123,11 +135,15 @@ useEffect(() => {
     }
   };
 
-  const handleDeleteUser = async (userId, username) => {
-    if (!window.confirm(`¿Estás seguro de eliminar al usuario "${username}"? Esta acción no se puede deshacer.`)) {
-      return;
-    }
+  // Función para abrir el modal de confirmación
+  const openConfirmDelete = (userId, username) => {
+    setConfirmDeleteModal({ open: true, userId, username });
+  };
 
+  // Función para ejecutar la eliminación
+  const handleDeleteUser = async () => {
+    const { userId, username } = confirmDeleteModal;
+    
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
@@ -138,11 +154,14 @@ useEffect(() => {
       
       if (data.success) {
         loadUsers();
+        setSuccessModal({ open: true, message: `Usuario "${username}" eliminado exitosamente` });
       } else {
         setErrorModal({ open: true, errors: data.message || 'Error eliminando usuario' });
       }
     } catch (err) {
       setErrorModal({ open: true, errors: 'Error de conexión al eliminar usuario' });
+    } finally {
+      setConfirmDeleteModal({ open: false, userId: null, username: '' });
     }
   };
 
@@ -177,7 +196,7 @@ useEffect(() => {
         setNewPassword('');
         setConfirmPassword('');
         loadUsers();
-        alert('Contraseña actualizada correctamente');
+        setSuccessModal({ open: true, message: 'Contraseña actualizada correctamente' });
       } else {
         setErrorModal({ open: true, errors: data.message || 'Error cambiando contraseña' });
       }
@@ -207,7 +226,7 @@ useEffect(() => {
         setSelectedRoleUser(null);
         setNewRole('asesor');
         loadUsers();
-        alert('Rol actualizado correctamente');
+        setSuccessModal({ open: true, message: 'Rol actualizado correctamente' });
       } else {
         setErrorModal({ open: true, errors: data.message || 'Error cambiando rol' });
       }
@@ -218,18 +237,18 @@ useEffect(() => {
     }
   };
 
-const openPasswordModal = (user) => {
-  setSelectedUser(user);
-  setNewPassword('');
-  setConfirmPassword('');
-  setShowPasswordModal(true);
-};
+  const openPasswordModal = (user) => {
+    setSelectedUser(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPasswordModal(true);
+  };
 
-const openRoleModal = (user) => {
-  setSelectedRoleUser(user);
-  setNewRole(user.role);
-  setShowRoleModal(true);
-};
+  const openRoleModal = (user) => {
+    setSelectedRoleUser(user);
+    setNewRole(user.role);
+    setShowRoleModal(true);
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Nunca';
@@ -361,78 +380,80 @@ const openRoleModal = (user) => {
               <h3>Usuarios del Sistema</h3>
               {loading && !showCreateForm && <div className="adminLoading">Cargando...</div>}
               
-              <table className="usersTable">
-                <thead>
-                  <tr>
-                    <th>Usuario</th>
-                    <th>Email</th>
-                    <th>Nombre</th>
-                    <th>Rol</th>
-                    <th>Estado</th>
-                    <th>Último acceso</th>
-                    <th colSpan="4">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map(u => (
-                    <tr key={u.id} className={u.id === user.id ? 'currentUser' : ''}>
-                      <td>{u.username}</td>
-                      <td>{u.email}</td>
-                      <td>{u.full_name}</td>
-                      <td>
-                        <span className={`roleBadge ${u.role}`}>
-                          {u.role === 'admin' ? 'Admin' : 'Asesor'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`statusBadge ${u.is_active ? 'active' : 'inactive'}`}>
-                          {u.is_active ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td>{formatDate(u.last_login)}</td>
-                      <td>
-                        <button
-                          className="toggleStatusBtn"
-                          onClick={() => handleToggleStatus(u.id, u.is_active)}
-                          disabled={u.id === user.id}
-                          title={u.id === user.id ? 'No puedes desactivarte' : ''}
-                        >
-                          {u.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className="changeRoleBtn"
-                          onClick={() => openRoleModal(u)}
-                          disabled={u.id === user.id}
-                          title={u.id === user.id ? 'No puedes cambiarte el rol a ti mismo' : 'Cambiar rol'}
-                        >
-                          <Shield size={16} />
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className="changePasswordBtn"
-                          onClick={() => openPasswordModal(u)}
-                          title="Cambiar contraseña"
-                        >
-                          <KeyRound size={16} />
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          className="deleteUserBtn"
-                          onClick={() => handleDeleteUser(u.id, u.username)}
-                          disabled={u.id === user.id}
-                          title={u.id === user.id ? 'No puedes eliminarte' : 'Eliminar usuario'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="usersTable">
+                  <thead>
+                    <tr>
+                      <th>Usuario</th>
+                      <th>Email</th>
+                      <th>Nombre</th>
+                      <th>Rol</th>
+                      <th>Estado</th>
+                      <th>Último acceso</th>
+                      <th colSpan="4">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id} className={u.id === user.id ? 'currentUser' : ''}>
+                        <td>{u.username}</td>
+                        <td>{u.email}</td>
+                        <td>{u.full_name}</td>
+                        <td>
+                          <span className={`roleBadge ${u.role}`}>
+                            {u.role === 'admin' ? 'Admin' : 'Asesor'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`statusBadge ${u.is_active ? 'active' : 'inactive'}`}>
+                            {u.is_active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td>{formatDate(u.last_login)}</td>
+                        <td>
+                          <button
+                            className="toggleStatusBtn"
+                            onClick={() => handleToggleStatus(u.id, u.is_active)}
+                            disabled={u.id === user.id}
+                            title={u.id === user.id ? 'No puedes desactivarte' : ''}
+                          >
+                            {u.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            className="changeRoleBtn"
+                            onClick={() => openRoleModal(u)}
+                            disabled={u.id === user.id}
+                            title={u.id === user.id ? 'No puedes cambiarte el rol a ti mismo' : 'Cambiar rol'}
+                          >
+                            <Shield size={16} />
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            className="changePasswordBtn"
+                            onClick={() => openPasswordModal(u)}
+                            title="Cambiar contraseña"
+                          >
+                            <KeyRound size={16} />
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            className="deleteUserBtn"
+                            onClick={() => openConfirmDelete(u.id, u.username)}
+                            disabled={u.id === user.id}
+                            title={u.id === user.id ? 'No puedes eliminarte' : 'Eliminar usuario'}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -532,6 +553,77 @@ const openRoleModal = (user) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmación para eliminar usuario */}
+      {confirmDeleteModal.open && (
+        <div className="confirmModalOverlay" onClick={() => setConfirmDeleteModal({ open: false, userId: null, username: '' })}>
+          <div className="confirmModal" onClick={(e) => e.stopPropagation()}>
+            <div className="confirmModalHeader">
+              <div className="confirmModalTitle">
+                <AlertCircle size={24} className="confirmModalIcon" />
+                <h3>Confirmar eliminación</h3>
+              </div>
+              <button 
+                className="confirmModalClose" 
+                onClick={() => setConfirmDeleteModal({ open: false, userId: null, username: '' })}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="confirmModalBody">
+              <p>
+                ¿Estás seguro de eliminar al usuario <strong>"{confirmDeleteModal.username}"</strong>?
+                <br /><br />
+                Esta acción <strong style={{ color: 'var(--danger)' }}>no se puede deshacer</strong> y eliminará permanentemente al usuario del sistema.
+              </p>
+            </div>
+            <div className="confirmModalFooter">
+              <button 
+                className="confirmModalBtn confirmModalBtn--cancel"
+                onClick={() => setConfirmDeleteModal({ open: false, userId: null, username: '' })}
+              >
+                Cancelar
+              </button>
+              <button 
+                className="confirmModalBtn confirmModalBtn--confirm"
+                onClick={handleDeleteUser}
+              >
+                Eliminar usuario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de éxito */}
+      {successModal.open && (
+        <div className="modalOverlay" onClick={() => setSuccessModal({ open: false, message: '' })}>
+          <div className="modalCard successModal" onClick={(e) => e.stopPropagation()}>
+            <div className="modalHeader">
+              <div className="modalTitle">
+                <CheckCircle size={24} color="#10b981" />
+                <h3>¡Éxito!</h3>
+              </div>
+              <button className="closeBtn" onClick={() => setSuccessModal({ open: false, message: '' })}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="modalContent">
+              <p>{successModal.message}</p>
+            </div>
+
+            <div className="modalActions">
+              <button 
+                className="primaryBtn" 
+                onClick={() => setSuccessModal({ open: false, message: '' })}
+              >
+                Aceptar
+              </button>
+            </div>
           </div>
         </div>
       )}

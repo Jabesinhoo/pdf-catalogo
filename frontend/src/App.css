@@ -2062,7 +2062,25 @@ textarea::placeholder {
   padding: 0.5rem 0;
   width: 100%;
 }
+/* Modal de éxito */
+.successModal {
+  border-top: 4px solid #10b981;
+}
 
+.successModal .modalTitle h3 {
+  color: #10b981;
+}
+
+.modalContent {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.modalContent p {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
 .searchPanel__categoriesWrap {
   display: flex;
   flex-direction: column;
@@ -3217,7 +3235,212 @@ textarea::placeholder {
   align-items: center;
   gap: 8px;
 }
+/* Confirm Modal - ya veo que tienes estos estilos en tu CSS, pero verificamos */
+.confirmModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 1rem;
+}
 
+.confirmModal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: modalSlideIn 0.2s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.confirmModalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+
+.confirmModalTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.confirmModalIcon {
+  color: var(--warning);
+}
+
+.confirmModalTitle h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.confirmModalClose {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.confirmModalClose:hover {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+}
+
+.confirmModalBody {
+  padding: 1.5rem;
+}
+
+.confirmModalBody p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.confirmModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1rem 1.5rem 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.confirmModalBtn {
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.confirmModalBtn--cancel {
+  background: var(--soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.confirmModalBtn--cancel:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.confirmModalBtn--confirm {
+  background: var(--danger);
+  border: none;
+  color: white;
+}
+
+.confirmModalBtn--confirm:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+.collapseSearchBtn {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+/* En tu App.css o archivo de estilos correspondiente */
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.panelHeader:hover {
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.02));
+}
+
+.collapseBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.collapseBtn:hover {
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+.collapseBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.collapseBtn:hover {
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+/* Si estás en modo oscuro */
+.dark .collapseBtn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+.collapseSearchBtn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 /* Checkbox de selección masiva */
 .batchSelectCheckbox {
   background: none;

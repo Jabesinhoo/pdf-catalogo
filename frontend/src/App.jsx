@@ -14,6 +14,7 @@ import ProductCard from "./components/ProductCard";
 import EditProductModal from "./components/EditProductModal";
 import QuoteForm from "./components/QuoteForm";
 import ConfirmModal from "./components/ConfirmModal";
+import ErrorModal from "./components/ErrorModal";
 import MassIvaEditor from "./components/MassIvaEditor";
 import { useTheme } from "./hooks/useTheme";
 import { createEmptyProduct } from "./utils/productFactory";
@@ -96,6 +97,17 @@ function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
 
+  // ===== MODALES =====
+  const [errorModal, setErrorModal] = useState({ open: false, errors: null });
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null,
+    confirmText: "Confirmar",
+    cancelText: "Cancelar"
+  });
+
   // ===== ESTADOS PRINCIPALES =====
   const [documentType, setDocumentType] = useState("catalog");
   const [mode, setMode] = useState("url");
@@ -123,8 +135,9 @@ function App() {
   const [showNewCatalogModal, setShowNewCatalogModal] = useState(false);
 
   // Estados de ordenamiento
-  const [sortBy, setSortBy] = useState("name");
+  const [sortBy, setSortBy] = useState("manual"); // Cambiado a "manual" por defecto
   const [sortOrder, setSortOrder] = useState("asc");
+
 
   const [quoteMeta, setQuoteMeta] = useState({
     companyName: "TECNONACHO S.A.S",
@@ -148,6 +161,26 @@ function App() {
     name: "", sku: "", price: "", quantity: 1, ivaRate: 0, ivaType: 'gravado',
     totalPrice: "", shortDescription: "", image: "", images: [], productUrl: "", selected: true,
   });
+
+  // Función helper para mostrar modales de confirmación
+  const showConfirmModal = (title, message, onConfirm, confirmText = "Confirmar", cancelText = "Cancelar") => {
+    setConfirmModal({
+      open: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, open: false }));
+        onConfirm();
+      },
+      confirmText,
+      cancelText
+    });
+  };
+
+  // Función helper para mostrar errores
+  const showErrorModal = (errors) => {
+    setErrorModal({ open: true, errors });
+  };
 
   // ===== VERIFICAR SESIÓN AL INICIAR =====
   useEffect(() => {
@@ -301,69 +334,56 @@ function App() {
     setSortOrder(order);
   };
 
-  // ===== FUNCIONES PARA ORDENAMIENTO - VERSIÓN CORREGIDA =====
   const parsePriceToNumber = (price) => {
     if (!price) return 0;
     if (typeof price === 'number') return price;
 
-    // Convertir a string y limpiar
     let priceStr = String(price).trim();
-
-    // Eliminar símbolos de moneda
     priceStr = priceStr.replace(/[$₡€£¥]/g, '').trim();
 
-    // Eliminar puntos y comas SOLO si son separadores de miles
-    // Detectar formato: si hay puntos y comas, determinar cuál es decimal
     const hasDot = priceStr.includes('.');
     const hasComma = priceStr.includes(',');
 
     let cleanStr = priceStr;
 
     if (hasDot && hasComma) {
-      // Formato mixto: la última aparición de punto o coma suele ser decimal
       const lastDot = priceStr.lastIndexOf('.');
       const lastComma = priceStr.lastIndexOf(',');
 
       if (lastComma > lastDot) {
-        // La coma es decimal (formato español: 1.234.567,89)
         cleanStr = priceStr.replace(/\./g, '').replace(',', '.');
       } else {
-        // El punto es decimal (formato inglés: 1,234,567.89)
         cleanStr = priceStr.replace(/,/g, '');
       }
     } else if (hasComma) {
-      // Solo tiene comas
       const parts = priceStr.split(',');
       if (parts.length === 2 && parts[1].length <= 2 && parts[1].length > 0) {
-        // Es decimal (ej: 1234,56)
         cleanStr = priceStr.replace(',', '.');
       } else {
-        // Son separadores de miles (ej: 1,234,567)
         cleanStr = priceStr.replace(/,/g, '');
       }
     } else if (hasDot) {
-      // Solo tiene puntos
       const parts = priceStr.split('.');
       if (parts.length === 2 && parts[1].length <= 2 && parts[1].length > 0) {
-        // Es decimal (ej: 1234.56)
         cleanStr = priceStr;
       } else {
-        // Son separadores de miles (ej: 1.234.567)
         cleanStr = priceStr.replace(/\./g, '');
       }
     }
 
-    // Eliminar cualquier caracter que no sea número o punto
     cleanStr = cleanStr.replace(/[^\d.-]/g, '');
-
     const number = parseFloat(cleanStr);
     return isNaN(number) ? 0 : number;
   };
 
+  // Función para obtener productos ordenados según sortBy/sortOrder
   const getSortedProducts = (productsToSort) => {
     if (!productsToSort || productsToSort.length === 0) return [];
 
-    console.log('📊 Ordenando:', sortBy, sortOrder, 'Total productos:', productsToSort.length);
+    // Si es "manual", mantener el orden original
+    if (sortBy === "manual") {
+      return [...productsToSort];
+    }
 
     const sorted = [...productsToSort].sort((a, b) => {
       let aValue, bValue;
@@ -376,10 +396,6 @@ function App() {
         case "price":
           aValue = parsePriceToNumber(a.price);
           bValue = parsePriceToNumber(b.price);
-          // Log para debug (opcional, puedes quitarlo después)
-          if (a.price && b.price) {
-            console.log(`💰 Comparando: ${a.name} (${a.price} -> ${aValue}) vs ${b.name} (${b.price} -> ${bValue})`);
-          }
           break;
         case "sku":
           aValue = (a.sku || "").toLowerCase();
@@ -405,65 +421,47 @@ function App() {
       }
     });
 
-    // Log de los primeros precios después de ordenar
-    if (sorted.length > 0 && sortBy === "price") {
-      console.log('📊 Primeros precios ordenados:', sorted.slice(0, 3).map(p => ({
-        name: p.name,
-        price: p.price,
-        numeric: parsePriceToNumber(p.price)
-      })));
-    }
-
     return sorted;
   };
 
   // ===== FUNCIONES PARA PRODUCTOS =====
-  const selectedProducts = useMemo(() => products.filter((p) => p.selected), [products]);
-  const selectedCount = selectedProducts.length;
+  const selectedProducts = useMemo(() => {
+    // Los productos seleccionados también deben respetar el orden para el PDF
+    const selected = products.filter((p) => p.selected);
+    return getSortedProducts(selected);
+  }, [products, sortBy, sortOrder]);
+
+  const selectedCount = products.filter((p) => p.selected).length;
   const allSelected = products.length > 0 && products.every((p) => p.selected);
 
   const visibleProducts = useMemo(() => {
-  const term = localFilter.trim().toLowerCase();
-  let filtered = products;
+    const term = localFilter.trim().toLowerCase();
+    let filtered = products;
 
-  if (term) {
-    filtered = products.filter((product) =>
-      String(product.name || "").toLowerCase().includes(term) ||
-      String(product.sku || "").toLowerCase().includes(term) ||
-      String(product.shortDescription || "").toLowerCase().includes(term) ||
-      String(product.price || "").toLowerCase().includes(term)
-    );
-  }
+    if (term) {
+      filtered = products.filter((product) =>
+        String(product.name || "").toLowerCase().includes(term) ||
+        String(product.sku || "").toLowerCase().includes(term) ||
+        String(product.shortDescription || "").toLowerCase().includes(term) ||
+        String(product.price || "").toLowerCase().includes(term)
+      );
+    }
 
-  // Si el ordenamiento es manual, devolver los productos sin ordenar
-  if (sortBy === "manual") {
-    return filtered;
-  }
-
-  return getSortedProducts(filtered);
-}, [products, localFilter, sortBy, sortOrder]);
+    return getSortedProducts(filtered);
+  }, [products, localFilter, sortBy, sortOrder]);
 
   const moveProduct = (dragIndex, hoverIndex) => {
-  console.log(`🎯 MOVE PRODUCT: de ${dragIndex} a ${hoverIndex}`);
-  
-  // Cuando el usuario arrastra, desactivar el ordenamiento automático
-  // Cambiar a un modo "manual" (podrías crear un estado 'isDragging' o cambiar sortBy a null)
-  
-  setProducts((prevProducts) => {
-    const newProducts = [...prevProducts];
-    const draggedProduct = newProducts[dragIndex];
-    console.log(`📦 Producto arrastrado: ${draggedProduct?.name}`);
-    
-    newProducts.splice(dragIndex, 1);
-    newProducts.splice(hoverIndex, 0, draggedProduct);
-    
-    console.log('Productos después:', newProducts.map(p => p.name));
-    return newProducts;
-  });
-  
-  // Opcional: Cambiar temporalmente el orden a null para que no se reordene
-  // setSortBy(null); // Esto desactivaría el ordenamiento
-};
+    // Solo permitir mover cuando el orden es manual
+    if (sortBy !== "manual") return;
+
+    setProducts((prevProducts) => {
+      const newProducts = [...prevProducts];
+      const draggedProduct = newProducts[dragIndex];
+      newProducts.splice(dragIndex, 1);
+      newProducts.splice(hoverIndex, 0, draggedProduct);
+      return newProducts;
+    });
+  };
 
   async function fetchSearch(modeValue, value) {
     const data = await apiFetch("/products/search", {
@@ -521,15 +519,33 @@ function App() {
   }
 
   function resetCatalog() {
-    if (products.length > 0 && !window.confirm("¿Estás seguro de limpiar todo el catálogo?")) return;
-    setProducts([]);
-    setSearchHistory([]);
-    setLocalFilter("");
-    setLastPdfUrl("");
-    setError("");
-    setSelectedCategories([]);
-    setStockStatuses(["instock"]);
-    setBatchSelectedIds([]);
+    if (products.length > 0) {
+      showConfirmModal(
+        "Limpiar catálogo",
+        "¿Estás seguro de limpiar todo el catálogo? Esta acción no se puede deshacer.",
+        () => {
+          setProducts([]);
+          setSearchHistory([]);
+          setLocalFilter("");
+          setLastPdfUrl("");
+          setError("");
+          setSelectedCategories([]);
+          setStockStatuses(["instock"]);
+          setBatchSelectedIds([]);
+        },
+        "Sí, limpiar",
+        "Cancelar"
+      );
+    } else {
+      setProducts([]);
+      setSearchHistory([]);
+      setLocalFilter("");
+      setLastPdfUrl("");
+      setError("");
+      setSelectedCategories([]);
+      setStockStatuses(["instock"]);
+      setBatchSelectedIds([]);
+    }
   }
 
   function handleToggleProduct(productId) {
@@ -550,25 +566,31 @@ function App() {
     const productToRemove = products.find(p => p.id === productId);
     const productIndex = products.findIndex(p => p.id === productId);
 
-    if (!window.confirm('¿Eliminar este producto?')) return;
+    showConfirmModal(
+      "Eliminar producto",
+      `¿Estás seguro de eliminar "${productToRemove?.name || 'este producto'}"?`,
+      () => {
+        setProducts((prev) => prev.filter((product) => product.id !== productId));
+        setBatchSelectedIds(prev => prev.filter(id => id !== productId));
 
-    setProducts((prev) => prev.filter((product) => product.id !== productId));
-    setBatchSelectedIds(prev => prev.filter(id => id !== productId));
-
-    setUndoToast({
-      show: true,
-      message: "Producto eliminado",
-      onUndo: () => {
-        setProducts((prev) => {
-          const newProducts = [...prev];
-          newProducts.splice(productIndex, 0, productToRemove);
-          return newProducts;
+        setUndoToast({
+          show: true,
+          message: "Producto eliminado",
+          onUndo: () => {
+            setProducts((prev) => {
+              const newProducts = [...prev];
+              newProducts.splice(productIndex, 0, productToRemove);
+              return newProducts;
+            });
+            setUndoToast({ show: false, message: "", onUndo: null });
+          },
         });
-        setUndoToast({ show: false, message: "", onUndo: null });
-      },
-    });
 
-    setTimeout(() => setUndoToast((prev) => ({ ...prev, show: false })), 5000);
+        setTimeout(() => setUndoToast((prev) => ({ ...prev, show: false })), 5000);
+      },
+      "Eliminar",
+      "Cancelar"
+    );
   }
 
   function handleSelectAllForBatch() {
@@ -590,24 +612,30 @@ function App() {
   function handleDeleteBatch() {
     if (batchSelectedIds.length === 0) return;
 
-    if (window.confirm(`¿Eliminar ${batchSelectedIds.length} producto${batchSelectedIds.length !== 1 ? 's' : ''}?`)) {
-      const removedProducts = products.filter(p => batchSelectedIds.includes(p.id));
+    const removedProducts = products.filter(p => batchSelectedIds.includes(p.id));
 
-      setProducts(prev => prev.filter(p => !batchSelectedIds.includes(p.id)));
-      setBatchSelectedIds([]);
+    showConfirmModal(
+      "Eliminar productos",
+      `¿Estás seguro de eliminar ${batchSelectedIds.length} producto${batchSelectedIds.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`,
+      () => {
+        setProducts(prev => prev.filter(p => !batchSelectedIds.includes(p.id)));
+        setBatchSelectedIds([]);
 
-      setUndoToast({
-        show: true,
-        message: `${removedProducts.length} producto${removedProducts.length !== 1 ? 's' : ''} eliminado${removedProducts.length !== 1 ? 's' : ''}`,
-        onUndo: () => {
-          setProducts(prev => [...prev, ...removedProducts]);
-        },
-      });
+        setUndoToast({
+          show: true,
+          message: `${removedProducts.length} producto${removedProducts.length !== 1 ? 's' : ''} eliminado${removedProducts.length !== 1 ? 's' : ''}`,
+          onUndo: () => {
+            setProducts(prev => [...prev, ...removedProducts]);
+          },
+        });
 
-      setTimeout(() => {
-        setUndoToast((prev) => ({ ...prev, show: false }));
-      }, 5000);
-    }
+        setTimeout(() => {
+          setUndoToast((prev) => ({ ...prev, show: false }));
+        }, 5000);
+      },
+      "Eliminar",
+      "Cancelar"
+    );
   }
 
   function handleApplyIvaToSelected(ivaType, ivaRate) {
@@ -691,7 +719,7 @@ function App() {
       const dataUrl = await fileToDataUrl(file);
       setDraft((prev) => ({ ...prev, image: dataUrl }));
     } catch {
-      setError("No se pudo cargar la imagen.");
+      showErrorModal("No se pudo cargar la imagen.");
     }
   }
 
@@ -734,10 +762,12 @@ function App() {
     setStockStatuses(["instock"]);
     setBatchSelectedIds([]);
 
+    const today = new Date().toISOString().slice(0, 10);
     setQuoteMeta({
       ...quoteMeta,
       customerName: "",
       quoteNumber: "",
+      date: today,
       paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
     });
 
@@ -776,15 +806,25 @@ function App() {
         throw new Error("Selecciona al menos un producto.");
       }
 
+      // ACTUALIZAR LA FECHA ACTUAL ANTES DE GENERAR EL PDF
+      const today = new Date().toISOString().slice(0, 10);
+      const currentQuoteMeta = {
+        ...quoteMeta,
+        date: today
+      };
+
+      // Actualizar el estado también para que el formulario muestre la fecha actual
+      setQuoteMeta(currentQuoteMeta);
+
       const response = await fetch("/api/pdf/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: 'include',
         body: JSON.stringify({
           documentType,
-          products: selectedProducts,
+          products: selectedProducts, // Los productos ya están ordenados por selectedProducts
           orientation,
-          quoteMeta
+          quoteMeta: currentQuoteMeta
         }),
       });
 
@@ -811,11 +851,12 @@ function App() {
           type: documentType,
           title: documentType === "quote" ? quoteMeta.customerName || "Cotización" : "Catálogo",
           products: selectedProducts,
-          quoteMeta,
+          quoteMeta: currentQuoteMeta,
           orientation,
           pdfUrl: downloadUrl,
           productCount: selectedProducts.length,
-          customerName: quoteMeta.customerName
+          customerName: quoteMeta.customerName,
+          date: today
         });
 
         if (savedDoc) {
@@ -845,11 +886,12 @@ function App() {
         type: documentType,
         title: documentType === "quote" ? quoteMeta.customerName || "Cotización" : "Catálogo",
         products: selectedProducts,
-        quoteMeta,
+        quoteMeta: currentQuoteMeta,
         orientation,
         pdfUrl: fallbackUrl,
         productCount: selectedProducts.length,
-        customerName: quoteMeta.customerName
+        customerName: quoteMeta.customerName,
+        date: today
       });
 
       if (savedDoc) {
@@ -863,28 +905,50 @@ function App() {
         }, 5000);
       }
     } catch (err) {
-      setError(err.message || "No se pudo generar el PDF.");
+      showErrorModal(err.message || "No se pudo generar el PDF.");
     } finally {
       setGenerating(false);
     }
   }
 
   function handleLoadDocument(doc) {
-    if (products.length > 0 && !window.confirm("¿Cargar este documento? Se perderán los cambios actuales.")) return;
+    const loadWithCurrentDate = () => {
+      const loadedProducts = (doc.products || []).map(product => ({
+        ...product,
+        selected: true,
+        quantity: product.quantity || 1,
+        ivaRate: product.ivaRate || 0
+      }));
 
-    const loadedProducts = (doc.products || []).map(product => ({
-      ...product,
-      selected: true,
-      quantity: product.quantity || 1,
-      ivaRate: product.ivaRate || 0
-    }));
+      setDocumentType(doc.type);
+      setProducts(loadedProducts);
 
-    setDocumentType(doc.type);
-    setProducts(loadedProducts);
-    setQuoteMeta(doc.quoteMeta || quoteMeta);
-    setOrientation(doc.orientation || "portrait");
-    setError("");
-    setBatchSelectedIds([]);
+      // USAR LA FECHA ACTUAL
+      const today = new Date().toISOString().slice(0, 10);
+      const updatedQuoteMeta = {
+        ...(doc.quoteMeta || quoteMeta),
+        date: today,
+        customerName: doc.customerName || doc.quoteMeta?.customerName || "",
+        quoteNumber: doc.quoteMeta?.quoteNumber || ""
+      };
+
+      setQuoteMeta(updatedQuoteMeta);
+      setOrientation(doc.orientation || "portrait");
+      setError("");
+      setBatchSelectedIds([]);
+    };
+
+    if (products.length > 0) {
+      showConfirmModal(
+        "Cargar documento",
+        "¿Cargar este documento? Se perderán los cambios actuales.",
+        loadWithCurrentDate,
+        "Sí, cargar",
+        "Cancelar"
+      );
+    } else {
+      loadWithCurrentDate();
+    }
   }
 
   function handleDeleteDocument(id) {
@@ -897,12 +961,18 @@ function App() {
       return;
     }
 
-    if (window.confirm('Este documento no tiene un PDF asociado. ¿Deseas generarlo ahora?')) {
-      handleLoadDocument(doc);
-      setTimeout(() => {
-        generatePdf(false);
-      }, 500);
-    }
+    showConfirmModal(
+      "Generar PDF",
+      "Este documento no tiene un PDF asociado. ¿Deseas generarlo ahora?",
+      () => {
+        handleLoadDocument(doc);
+        setTimeout(() => {
+          generatePdf(false);
+        }, 500);
+      },
+      "Sí, generar",
+      "Cancelar"
+    );
   }
 
   function handleRefreshDocuments() {
@@ -923,7 +993,6 @@ function App() {
     return <Login onLogin={handleLogin} />;
   }
 
-  // IMPORTANTE: Envolver TODO el contenido con DndProvider
   return (
     <DndProvider backend={HTML5Backend}>
       <MainLayout
@@ -955,26 +1024,25 @@ function App() {
             onGenerate={() => generatePdf(false)}
           />
         )}
+        
+          <SearchPanel
+            mode={mode}
+            setMode={setMode}
+            queryText={queryText}
+            setQueryText={setQueryText}
+            orientation={orientation}
+            setOrientation={setOrientation}
+            loading={loading}
+            runSearch={runSearch}
+            resetCatalog={resetCatalog}
+            error={error}
+            categories={categories}
+            selectedCategories={selectedCategories}
+            setSelectedCategories={setSelectedCategories}
+            stockStatuses={stockStatuses}
+            setStockStatuses={setStockStatuses}
+          />
 
-        <SearchPanel
-          mode={mode}
-          setMode={setMode}
-          queryText={queryText}
-          setQueryText={setQueryText}
-          orientation={orientation}
-          setOrientation={setOrientation}
-          loading={loading}
-          runSearch={runSearch}
-          resetCatalog={resetCatalog}
-          error={error}
-          categories={categories}
-          selectedCategories={selectedCategories}
-          setSelectedCategories={setSelectedCategories}
-          stockStatuses={stockStatuses}
-          setStockStatuses={setStockStatuses}
-        />
-
-        <SearchHistory items={searchHistory} />
 
         <ResultsToolbar
           count={visibleProducts.length}
@@ -1005,41 +1073,36 @@ function App() {
           products={products}
           onApplyIvaToSelected={handleApplyIvaToSelected}
         />
+
+        <SearchHistory items={searchHistory} />
+
         <section className="productGrid">
-  {visibleProducts.length === 0 ? (
-    <div className="emptyState">
-      <h3>No hay productos</h3>
-      <p>Busca productos para comenzar</p>
-    </div>
-  ) : (
-    <>
-      {console.log('📊 Renderizando grid con', visibleProducts.length, 'productos')}
-      <DndProvider backend={HTML5Backend}>
-        {visibleProducts.map((product, index) => {
-          console.log(`🎴 Renderizando producto: ${product.name} (índice: ${index})`);
-          return (
-            <DraggableProductCard
-              key={product.id}
-              index={index}
-              product={product}
-              moveProduct={moveProduct}
-              documentType={documentType}
-              checked={product.selected}
-              onToggle={() => handleToggleProduct(product.id)}
-              onEdit={() => handleOpenEdit(product)}
-              onDuplicate={() => handleDuplicateProduct(product)}
-              onRemove={() => handleRemoveProduct(product.id)}
-              onChange={(updates) => handleUpdateProduct(product.id, updates)}
-              userRole={authUser?.role}
-              isSelectedForBatch={batchSelectedIds.includes(product.id)}
-              onSelectForBatch={handleToggleBatchSelection}
-            />
-          );
-        })}
-      </DndProvider>
-    </>
-  )}
-</section>
+          {visibleProducts.length === 0 ? (
+            <div className="emptyState">
+              <h3>No hay productos</h3>
+              <p>Busca productos para comenzar</p>
+            </div>
+          ) : (
+            visibleProducts.map((product, index) => (
+              <DraggableProductCard
+                key={product.id}
+                index={index}
+                product={product}
+                moveProduct={moveProduct}
+                documentType={documentType}
+                checked={product.selected}
+                onToggle={() => handleToggleProduct(product.id)}
+                onEdit={() => handleOpenEdit(product)}
+                onDuplicate={() => handleDuplicateProduct(product)}
+                onRemove={() => handleRemoveProduct(product.id)}
+                onChange={(updates) => handleUpdateProduct(product.id, updates)}
+                userRole={authUser?.role}
+                isSelectedForBatch={batchSelectedIds.includes(product.id)}
+                onSelectForBatch={handleToggleBatchSelection}
+              />
+            ))
+          )}
+        </section>
 
         {undoToast.show && (
           <div className="undoToast">
@@ -1074,12 +1137,13 @@ function App() {
           />
         )}
 
+        {/* Modales de confirmación */}
         <ConfirmModal
           isOpen={showNewQuoteModal}
           onClose={closeNewQuoteModal}
           onConfirm={handleNewQuoteConfirm}
           title="Nueva cotización"
-          message="¿Estás seguro? se iniciará una cotización en blanco."
+          message="¿Estás seguro? Se iniciará una cotización en blanco."
           confirmText="Sí, empezar nueva"
           cancelText="Cancelar"
         />
@@ -1089,9 +1153,28 @@ function App() {
           onClose={closeNewCatalogModal}
           onConfirm={handleNewCatalogConfirm}
           title="Nuevo catálogo"
-          message="¿Estás seguro? se iniciará un catálogo en blanco."
+          message="¿Estás seguro? Se iniciará un catálogo en blanco."
           confirmText="Sí, empezar nuevo"
           cancelText="Cancelar"
+        />
+
+        {/* Modal de confirmación genérico */}
+        <ConfirmModal
+          isOpen={confirmModal.open}
+          onClose={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+          onConfirm={confirmModal.onConfirm || (() => { })}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          cancelText={confirmModal.cancelText}
+        />
+
+        {/* Modal de error */}
+        <ErrorModal
+          isOpen={errorModal.open}
+          onClose={() => setErrorModal({ open: false, errors: null })}
+          title="Error"
+          errors={errorModal.errors}
         />
       </MainLayout>
     </DndProvider>
