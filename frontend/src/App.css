@@ -5283,7 +5283,7 @@ textarea::placeholder {
 }
 
 .adminError::before {
-  content: '⚠️';
+  content: '';
   font-size: 1.1rem;
 }
 

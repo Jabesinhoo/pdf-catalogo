@@ -135,7 +135,7 @@ function App() {
   const [showNewCatalogModal, setShowNewCatalogModal] = useState(false);
 
   // Estados de ordenamiento
-  const [sortBy, setSortBy] = useState("manual"); // Cambiado a "manual" por defecto
+  const [sortBy, setSortBy] = useState("manual");
   const [sortOrder, setSortOrder] = useState("asc");
 
 
@@ -380,7 +380,6 @@ function App() {
   const getSortedProducts = (productsToSort) => {
     if (!productsToSort || productsToSort.length === 0) return [];
 
-    // Si es "manual", mantener el orden original
     if (sortBy === "manual") {
       return [...productsToSort];
     }
@@ -426,7 +425,6 @@ function App() {
 
   // ===== FUNCIONES PARA PRODUCTOS =====
   const selectedProducts = useMemo(() => {
-    // Los productos seleccionados también deben respetar el orden para el PDF
     const selected = products.filter((p) => p.selected);
     return getSortedProducts(selected);
   }, [products, sortBy, sortOrder]);
@@ -451,7 +449,6 @@ function App() {
   }, [products, localFilter, sortBy, sortOrder]);
 
   const moveProduct = (dragIndex, hoverIndex) => {
-    // Solo permitir mover cuando el orden es manual
     if (sortBy !== "manual") return;
 
     setProducts((prevProducts) => {
@@ -768,6 +765,7 @@ function App() {
       customerName: "",
       quoteNumber: "",
       date: today,
+      documentTitle: "COTIZACIÓN",
       paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
     });
 
@@ -783,6 +781,11 @@ function App() {
     setSelectedCategories([]);
     setStockStatuses(["instock"]);
     setBatchSelectedIds([]);
+
+    setQuoteMeta((prev) => ({
+      ...prev,
+      documentTitle: "CATÁLOGO",
+    }));
 
     setShowNewCatalogModal(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -806,15 +809,30 @@ function App() {
         throw new Error("Selecciona al menos un producto.");
       }
 
-      // ACTUALIZAR LA FECHA ACTUAL ANTES DE GENERAR EL PDF
       const today = new Date().toISOString().slice(0, 10);
       const currentQuoteMeta = {
         ...quoteMeta,
         date: today
       };
 
-      // Actualizar el estado también para que el formulario muestre la fecha actual
       setQuoteMeta(currentQuoteMeta);
+
+      // Determinar el título del documento para guardar y para el nombre del archivo
+      let documentTitle = "";
+      if (documentType === "quote") {
+        documentTitle = currentQuoteMeta.documentTitle || 
+                        currentQuoteMeta.customerName || 
+                        "Cotización";
+      } else {
+        documentTitle = currentQuoteMeta.documentTitle || "Catálogo";
+      }
+
+      // Limpiar el título para usarlo como nombre de archivo (sin caracteres especiales)
+      const cleanFileName = documentTitle
+        .replace(/[^a-z0-9]/gi, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .toLowerCase();
 
       const response = await fetch("/api/pdf/generate", {
         method: "POST",
@@ -822,7 +840,7 @@ function App() {
         credentials: 'include',
         body: JSON.stringify({
           documentType,
-          products: selectedProducts, // Los productos ya están ordenados por selectedProducts
+          products: selectedProducts,
           orientation,
           quoteMeta: currentQuoteMeta
         }),
@@ -849,13 +867,13 @@ function App() {
 
         const savedDoc = await saveDocumentToDB({
           type: documentType,
-          title: documentType === "quote" ? quoteMeta.customerName || "Cotización" : "Catálogo",
+          title: documentTitle,
           products: selectedProducts,
           quoteMeta: currentQuoteMeta,
           orientation,
           pdfUrl: downloadUrl,
           productCount: selectedProducts.length,
-          customerName: quoteMeta.customerName,
+          customerName: currentQuoteMeta.customerName,
           date: today
         });
 
@@ -866,7 +884,9 @@ function App() {
         if (!saveOnly) {
           const a = document.createElement("a");
           a.href = downloadUrl;
-          a.download = documentType === "quote" ? `cotizacion-${Date.now()}.pdf` : `catalogo-${Date.now()}.pdf`;
+          // Usar el título personalizado para el nombre del archivo
+          const fileName = `${cleanFileName}-${Date.now()}.pdf`;
+          a.download = fileName;
           document.body.appendChild(a);
           a.click();
 
@@ -884,13 +904,13 @@ function App() {
 
       const savedDoc = await saveDocumentToDB({
         type: documentType,
-        title: documentType === "quote" ? quoteMeta.customerName || "Cotización" : "Catálogo",
+        title: documentTitle,
         products: selectedProducts,
         quoteMeta: currentQuoteMeta,
         orientation,
         pdfUrl: fallbackUrl,
         productCount: selectedProducts.length,
-        customerName: quoteMeta.customerName,
+        customerName: currentQuoteMeta.customerName,
         date: today
       });
 
@@ -923,13 +943,13 @@ function App() {
       setDocumentType(doc.type);
       setProducts(loadedProducts);
 
-      // USAR LA FECHA ACTUAL
       const today = new Date().toISOString().slice(0, 10);
       const updatedQuoteMeta = {
         ...(doc.quoteMeta || quoteMeta),
         date: today,
         customerName: doc.customerName || doc.quoteMeta?.customerName || "",
-        quoteNumber: doc.quoteMeta?.quoteNumber || ""
+        quoteNumber: doc.quoteMeta?.quoteNumber || "",
+        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACIÓN" : "CATÁLOGO")
       };
 
       setQuoteMeta(updatedQuoteMeta);
@@ -1016,33 +1036,30 @@ function App() {
           onRefresh={handleRefreshDocuments}
         />
 
-        {documentType === "quote" && (
-          <QuoteForm
-            value={quoteMeta}
-            onChange={handleQuoteMetaChange}
-            generating={generating}
-            onGenerate={() => generatePdf(false)}
-          />
-        )}
-        
-          <SearchPanel
-            mode={mode}
-            setMode={setMode}
-            queryText={queryText}
-            setQueryText={setQueryText}
-            orientation={orientation}
-            setOrientation={setOrientation}
-            loading={loading}
-            runSearch={runSearch}
-            resetCatalog={resetCatalog}
-            error={error}
-            categories={categories}
-            selectedCategories={selectedCategories}
-            setSelectedCategories={setSelectedCategories}
-            stockStatuses={stockStatuses}
-            setStockStatuses={setStockStatuses}
-          />
-
+      <QuoteForm
+  value={quoteMeta}
+  onChange={handleQuoteMetaChange}
+  generating={generating}
+  onGenerate={() => generatePdf(false)}
+  documentType={documentType}  // ✅ Esto es importante
+/>
+        <SearchPanel
+          mode={mode}
+          setMode={setMode}
+          queryText={queryText}
+          setQueryText={setQueryText}
+          orientation={orientation}
+          setOrientation={setOrientation}
+          loading={loading}
+          runSearch={runSearch}
+          resetCatalog={resetCatalog}
+          error={error}
+          categories={categories}
+          selectedCategories={selectedCategories}
+          setSelectedCategories={setSelectedCategories}
+          stockStatuses={stockStatuses}
+          setStockStatuses={setStockStatuses}
+        />
 
         <ResultsToolbar
           count={visibleProducts.length}

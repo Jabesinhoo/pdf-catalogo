@@ -95,6 +95,7 @@ async function buildCatalogPdf({
         : buildCatalogHtml({
             products,
             orientation,
+            quoteMeta,
             sourceUrl,
             logoSrc,
           });

@@ -227,15 +227,19 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
       day: "2-digit",
     });
 
+  // Usar el título personalizado o "COTIZACIÓN" por defecto
+  const documentTitle = quoteMeta.documentTitle || "COTIZACIÓN";
+
   const pageClass = orientation === 'landscape' ? 'page landscape' : 'page';
   const containerClass = orientation === 'landscape' ? 'container landscape' : 'container';
   const paymentNote = quoteMeta.paymentNote || "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA";
+  
   return `
     <!doctype html>
     <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>Cotización Tecnonacho</title>
+        <title>${escapeHtml(documentTitle)} - Tecnonacho</title>
         <style>
           * {
             box-sizing: border-box;
@@ -492,7 +496,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             font-weight: 600;
           }
 
-          /* 👇 IMAGEN PRINCIPAL MÁS GRANDE */
+          /* IMAGEN PRINCIPAL */
           .product-image-box {
             width: ${orientation === 'landscape' ? '100px' : '120px'};
             min-width: ${orientation === 'landscape' ? '100px' : '120px'};
@@ -518,7 +522,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             object-fit: contain;
           }
 
-          /* 👇 GALERÍA MÁS PEQUEÑA */
+          /* GALERÍA */
           .gallery-section {
             margin: 20px 0 10px;
             page-break-inside: avoid;
@@ -562,7 +566,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             object-fit: contain;
           }
 
-          /* 👇 TOTALES DEBAJO DE LA GALERÍA */
+          /* TOTALES */
           .totals-detailed {
             width: 380px;
             margin-left: auto;
@@ -688,7 +692,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <div class="logo-box">
                 ${logoSrc ? `<img src="${logoSrc}" alt="Tecnonacho" />` : ''}
               </div>
-              <div class="doc-title">COTIZACIÓN</div>
+              <div class="doc-title">${escapeHtml(documentTitle)}</div>
             </div>
 
             <div class="meta-grid">
@@ -775,8 +779,8 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             </div>
 
             <div class="payment-note">
-  ${escapeHtml(paymentNote)}
-</div>
+              ${escapeHtml(paymentNote)}
+            </div>
 
             <div class="notes">
               <p>* Disponibilidad sujeta a rotación de inventario</p>
