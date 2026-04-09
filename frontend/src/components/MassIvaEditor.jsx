@@ -18,6 +18,7 @@ function MassIvaEditor({
     { type: 'gravado5', label: 'Gravado 5%', rate: 5, color: '#3b82f6' },
     { type: 'exento', label: 'Exento 0%', rate: 0, color: '#22c55e' },
     { type: 'excluido', label: 'Excluido', rate: 0, color: '#2563eb' },
+    { type: 'precio_final', label: 'PRECIO FINAL', rate: 0, color: '#6b7280' },
   ];
   
   const handleApply = () => {
@@ -55,7 +56,7 @@ function MassIvaEditor({
           ))}
         </div>
         
-        {selectedIvaType !== 'excluido' && selectedIvaType !== 'exento' && (
+        {selectedIvaType !== 'excluido' && selectedIvaType !== 'exento' && selectedIvaType !== 'precio_final' && (
           <div className="massIvaRateField">
             <label>Porcentaje de IVA</label>
             <div className="massIvaRateInput">

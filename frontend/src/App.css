@@ -5291,7 +5291,16 @@ textarea::placeholder {
   display: flex;
   justify-content: flex-end;
 }
+/* Badge para PRECIO FINAL */
+.product-card__iva-badge.precio-final {
+  background: #6b7280;
+  color: white;
+}
 
+/* Si quieres un estilo diferente */
+.product-card__iva-badge.precio-final::before {
+  content: " ";
+}
 .adminSubmitBtn {
   padding: 12px 28px;
   background: var(--accent);

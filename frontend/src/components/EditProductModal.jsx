@@ -111,17 +111,18 @@ function EditProductModal({
                     value={draft.ivaType || 'gravado'}
                     onChange={(e) => {
                       handleChange("ivaType", e.target.value);
-                      if (e.target.value === 'excluido') handleChange("ivaRate", 0);
+                      if (e.target.value === 'excluido' || e.target.value === 'precio_final') handleChange("ivaRate", 0);
                     }}
                   >
                     <option value="gravado">Gravado 19%</option>
                     <option value="gravado5">Gravado 5%</option>
                     <option value="exento">Exento 0%</option>
                     <option value="excluido">Excluido</option>
+                    <option value="precio_final">PRECIO FINAL (Sin IVA discriminado)</option>
                   </select>
                 </div>
 
-                {draft.ivaType !== 'excluido' && (
+                {draft.ivaType !== 'excluido' && draft.ivaType !== 'precio_final' && (
                   <div className="edit-modal__field">
                     <label>Porcentaje de IVA</label>
                     <input

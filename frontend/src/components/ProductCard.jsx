@@ -50,6 +50,9 @@ function ProductCard({
   // Calcular precio sin IVA (el precio original ya incluye IVA)
   const calculatePriceWithoutIva = () => {
     if (!product?.price) return null;
+    
+    // Si es PRECIO FINAL, no mostrar desglose
+    if (product.ivaType === 'precio_final') return null;
 
     const priceWithIva = parseMoney(product.price);
     let ivaRate = 0;
@@ -66,6 +69,9 @@ function ProductCard({
   // Calcular monto del IVA
   const calculateIvaAmount = () => {
     if (!product?.price) return null;
+    
+    // Si es PRECIO FINAL, no mostrar IVA discriminado
+    if (product.ivaType === 'precio_final') return null;
 
     const priceWithIva = parseMoney(product.price);
     let ivaRate = 0;
@@ -86,6 +92,7 @@ function ProductCard({
   const isGravado = product.ivaType === 'gravado' || product.ivaType === 'gravado19' || product.ivaType === 'gravado5';
   const isExento = product.ivaType === 'exento';
   const isExcluido = product.ivaType === 'excluido';
+  const isPrecioFinal = product.ivaType === 'precio_final';
 
   // Calcular total en tiempo real
   const calculateTotal = () => {
@@ -100,6 +107,7 @@ function ProductCard({
 
   // Obtener el texto del tipo de IVA
   const getIvaTypeText = () => {
+    if (isPrecioFinal) return 'Precio Final';
     if (isExcluido) return 'Excluido';
     if (isExento) return 'Exento 0%';
     if (product.ivaType === 'gravado5') return `Gravado 5%`;
@@ -235,7 +243,9 @@ function ProductCard({
           </div>
 
           <div className="product-card__detail-row">
-            <span className="product-card__detail-label">Precio (IVA incl.)</span>
+            <span className="product-card__detail-label">
+              {isPrecioFinal ? "PRECIO FINAL" : "Precio (IVA incl.)"}
+            </span>
             <span className="product-card__detail-value price">{priceWithIva}</span>
           </div>
 
@@ -250,8 +260,8 @@ function ProductCard({
             </div>
           )}
 
-          {/* Mostrar desglose de IVA solo si es gravado */}
-          {isGravado && ivaAmount && (
+          {/* Mostrar desglose de IVA solo si es gravado y NO es PRECIO FINAL */}
+          {isGravado && ivaAmount && !isPrecioFinal && (
             <>
               <div className="product-card__detail-row">
                 <span className="product-card__detail-label">Precio sin IVA</span>
@@ -267,7 +277,7 @@ function ProductCard({
           {/* Badge de tipo de IVA */}
           <div className="product-card__detail-row">
             <span className="product-card__detail-label">Tipo IVA</span>
-            <span className={`product-card__iva-badge ${isExcluido ? 'excluido' : isExento ? 'exento' : 'gravado'}`}>
+            <span className={`product-card__iva-badge ${isPrecioFinal ? 'precio-final' : isExcluido ? 'excluido' : isExento ? 'exento' : 'gravado'}`}>
               {getIvaTypeText()}
             </span>
           </div>
@@ -302,7 +312,7 @@ function ProductCard({
               onChange={(e) =>
                 onChange?.({
                   ivaType: e.target.value,
-                  ivaRate: e.target.value === 'excluido' ? 0 : (e.target.value === 'gravado5' ? 5 : 19)
+                  ivaRate: e.target.value === 'excluido' ? 0 : (e.target.value === 'gravado5' ? 5 : (e.target.value === 'precio_final' ? 0 : 19))
                 })
               }
             >
@@ -310,10 +320,11 @@ function ProductCard({
               <option value="gravado5">Gravado 5%</option>
               <option value="exento">Exento 0%</option>
               <option value="excluido">Excluido</option>
+              <option value="precio_final">PRECIO FINAL (Sin IVA discriminado)</option>
             </select>
           </div>
 
-          {product?.ivaType !== 'excluido' && product?.ivaType !== 'exento' && (
+          {product?.ivaType !== 'excluido' && product?.ivaType !== 'exento' && product?.ivaType !== 'precio_final' && (
             <div className="product-card__field-group">
               <label>IVA %</label>
               <input

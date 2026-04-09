@@ -9,22 +9,18 @@ function escapeHtml(text = "") {
 function fixImageUrl(url) {
   if (!url) return '';
   
-  // Si la URL ya es absoluta y válida
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
   
-  // Si es relativa, construir URL completa
   if (url.startsWith('/')) {
     return `https://tecnonacho.com${url}`;
   }
   
-  // Si es data:image (base64), devolver tal cual
   if (url.startsWith('data:image')) {
     return url;
   }
   
-  // Por defecto, intentar construir URL
   return `https://tecnonacho.com/wp-content/uploads/${url}`;
 }
 function parseMoney(value) {
@@ -91,6 +87,7 @@ function getQuoteNumbers(product) {
   const ivaType = product.ivaType || 'gravado';
   let ivaRate = Number(product.ivaRate ?? 0) || 0;
 
+  const isPrecioFinal = ivaType === 'precio_final';
   const isExcluido = ivaType === 'excluido';
   const isExento = ivaType === 'exento';
   const isGravado5 = ivaType === 'gravado5';
@@ -100,21 +97,23 @@ function getQuoteNumbers(product) {
   else if (isGravado5) ivaRate = 5;
   else if (isExento) ivaRate = 0;
   else if (isExcluido) ivaRate = 0;
+  else if (isPrecioFinal) ivaRate = 0;
 
   const priceWithIva = parseMoney(product.price);
 
-  const priceWithoutIva = ivaRate > 0 && !isExcluido
+  const priceWithoutIva = (ivaRate > 0 && !isExcluido && !isPrecioFinal)
     ? Math.round(priceWithIva / (1 + ivaRate / 100))
     : priceWithIva;
 
   const subtotal = priceWithoutIva * quantity;
-  const ivaAmount = isExcluido ? 0 : (priceWithIva - priceWithoutIva) * quantity;
-  const total = isExcluido ? priceWithoutIva * quantity : priceWithIva * quantity;
+  const ivaAmount = (isExcluido || isPrecioFinal) ? 0 : (priceWithIva - priceWithoutIva) * quantity;
+  const total = (isExcluido || isPrecioFinal) ? priceWithoutIva * quantity : priceWithIva * quantity;
 
   return {
     quantity,
     ivaType,
     ivaRate,
+    isPrecioFinal,
     isExcluido,
     isExento,
     isGravado19,
@@ -131,6 +130,7 @@ function buildRows(products, currency, orientation) {
   let subtotalGravado = 0;
   let subtotalExento = 0;
   let subtotalExcluido = 0;
+  let subtotalPrecioFinal = 0;
   let ivaTotal = 0;
 
   const rowsHtml = products.map((product) => {
@@ -140,18 +140,29 @@ function buildRows(products, currency, orientation) {
       subtotalExcluido += q.total;
     } else if (q.isExento) {
       subtotalExento += q.total;
+    } else if (q.isPrecioFinal) {
+      subtotalPrecioFinal += q.total;
     } else {
       subtotalGravado += q.subtotal;
       ivaTotal += q.ivaAmount;
     }
 
-    const ivaDisplay = q.isExcluido
-      ? '<span class="iva-excluido"> Excluido</span>'
-      : q.isExento
-        ? '<span class="iva-exento"> Exento 0%</span>'
-        : q.isGravado5
-          ? `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`
-          : `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+    let ivaDisplay = '';
+    if (q.isExcluido) {
+      ivaDisplay = '<span class="iva-excluido">Excluido</span>';
+    } else if (q.isExento) {
+      ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
+    } else if (q.isPrecioFinal) {
+      ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
+    } else if (q.isGravado5) {
+      ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+    } else {
+      ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+    }
+
+    const unitPriceDisplay = q.isPrecioFinal 
+      ? formatMoney(q.priceWithIva, currency)
+      : formatMoney(q.priceWithoutIva, currency);
 
     return `
       <tr class="product-row">
@@ -179,18 +190,25 @@ function buildRows(products, currency, orientation) {
             ` : ''}
           </div>
         </td>
-        <td class="col-unit">${escapeHtml(formatMoney(q.priceWithoutIva, currency))}</td>
+        <td class="col-unit">${escapeHtml(unitPriceDisplay)}</td>
         <td class="col-total">${escapeHtml(formatMoney(q.total, currency))}</td>
       </tr>
     `;
   }).join('');
+
+  const subtotalGeneral = subtotalGravado + subtotalExento + subtotalExcluido + subtotalPrecioFinal;
+  const totalGeneral = subtotalGeneral + ivaTotal;
+  const valorAPagar = totalGeneral;
 
   return {
     rows: rowsHtml,
     subtotalGravado,
     subtotalExento,
     subtotalExcluido,
-    ivaTotal
+    subtotalPrecioFinal,
+    ivaTotal,
+    totalGeneral,
+    valorAPagar
   };
 }
 
@@ -200,7 +218,7 @@ function buildGallery(products) {
 
   return `
     <div class="gallery-section">
-      <h3 class="gallery-title">Imágenes adicionales</h3>
+      <h3 class="gallery-title">Imagenes adicionales</h3>
       <div class="gallery-grid">
         ${allImages.map(img => `
           <div class="gallery-item">
@@ -215,9 +233,16 @@ function buildGallery(products) {
 function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientation = "portrait" }) {
   const currency = quoteMeta.currency || "COP";
 
-  const { rows, subtotalGravado, subtotalExento, subtotalExcluido, ivaTotal } = buildRows(products, currency, orientation);
-  const totalGeneral = subtotalGravado + subtotalExento + subtotalExcluido + ivaTotal;
-  const valorAPagar = totalGeneral;
+  const { 
+    rows, 
+    subtotalGravado, 
+    subtotalExento, 
+    subtotalExcluido, 
+    subtotalPrecioFinal,
+    ivaTotal, 
+    totalGeneral,
+    valorAPagar 
+  } = buildRows(products, currency, orientation);
 
   const dateValue =
     quoteMeta.date ||
@@ -227,8 +252,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
       day: "2-digit",
     });
 
-  // Usar el título personalizado o "COTIZACIÓN" por defecto
-  const documentTitle = quoteMeta.documentTitle || "COTIZACIÓN";
+  const documentTitle = quoteMeta.documentTitle || "COTIZACION";
 
   const pageClass = orientation === 'landscape' ? 'page landscape' : 'page';
   const containerClass = orientation === 'landscape' ? 'container landscape' : 'container';
@@ -247,7 +271,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
 
           body {
             margin: 0;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Verdana, Geneva, sans-serif;
             color: #222;
             background: #fff;
           }
@@ -491,12 +515,21 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             font-size: ${orientation === 'landscape' ? '9px' : '11px'};
           }
 
+          .iva-precio-final {
+            color: #6b7280;
+            font-weight: 600;
+            background: rgba(107, 114, 128, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+          }
+
           .iva-gravado {
             color: #8aa646;
             font-weight: 600;
           }
 
-          /* IMAGEN PRINCIPAL */
           .product-image-box {
             width: ${orientation === 'landscape' ? '100px' : '120px'};
             min-width: ${orientation === 'landscape' ? '100px' : '120px'};
@@ -522,7 +555,6 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             object-fit: contain;
           }
 
-          /* GALERÍA */
           .gallery-section {
             margin: 20px 0 10px;
             page-break-inside: avoid;
@@ -566,7 +598,6 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             object-fit: contain;
           }
 
-          /* TOTALES */
           .totals-detailed {
             width: 380px;
             margin-left: auto;
@@ -627,9 +658,10 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             margin-top: ${orientation === 'landscape' ? '10px' : '14px'};
             padding: ${orientation === 'landscape' ? '8px' : '10px'};
             border-top: 1px dashed #cbd5e1;
-            font-size: ${orientation === 'landscape' ? '10px' : '11px'};
+            font-family: Verdana, Geneva, sans-serif;
+            font-size: ${orientation === 'landscape' ? '12px' : '14px'};
             color: #6b7280;
-            line-height: 1.4;
+            line-height: 1.5;
           }
 
           .notes p {
@@ -710,26 +742,26 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               </div>
               <div class="meta-item">
                 <strong>VALIDEZ</strong>
-                <span>${escapeHtml(String(quoteMeta.validityDays || 1))} DÍAS</span>
+                <span>${escapeHtml(String(quoteMeta.validityDays || 1))} DIAS</span>
               </div>
             </div>
 
             <div class="advisor-grid">
               <div class="advisor-card">
                 <strong>CARGO</strong>
-                <span>${escapeHtml(quoteMeta.role || "—")}</span>
+                <span>${escapeHtml(quoteMeta.role || "-")}</span>
               </div>
               <div class="advisor-card">
                 <strong>ASESOR</strong>
-                <span>${escapeHtml(quoteMeta.authorName || "—")}</span>
+                <span>${escapeHtml(quoteMeta.authorName || "-")}</span>
               </div>
               <div class="advisor-card">
-                <strong>TELÉFONO</strong>
-                <span>${escapeHtml(quoteMeta.phone || "—")}</span>
+                <strong>TELEFONO</strong>
+                <span>${escapeHtml(quoteMeta.phone || "-")}</span>
               </div>
               <div class="advisor-card">
                 <strong>CORREO</strong>
-                <span>${escapeHtml(quoteMeta.email || "—")}</span>
+                <span>${escapeHtml(quoteMeta.email || "-")}</span>
               </div>
             </div>
 
@@ -737,7 +769,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <thead>
                 <tr>
                   <th class="th-qty">UND</th>
-                  <th class="th-description">DESCRIPCIÓN</th>
+                  <th class="th-description">DESCRIPCION</th>
                   <th class="th-unit">VR. UNIT</th>
                   <th class="th-total">VR. TOTAL</th>
                 </tr>
@@ -764,6 +796,10 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
                   <td class="total-value">${escapeHtml(formatMoney(subtotalExcluido, currency))}</td>
                 </tr>
                 <tr>
+                  <td>VR. PRECIO FINAL:</td>
+                  <td class="total-value">${escapeHtml(formatMoney(subtotalPrecioFinal, currency))}</td>
+                </tr>
+                <tr>
                   <td>IVA:</td>
                   <td class="total-value">${escapeHtml(formatMoney(ivaTotal, currency))}</td>
                 </tr>
@@ -783,11 +819,11 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             </div>
 
             <div class="notes">
-              <p>* Disponibilidad sujeta a rotación de inventario</p>
-              <p>* Cotización sujeta a análisis y aprobación</p>
-              <p>* Tecno Nacho S.A.S. no responsable de configuraciones finales</p>
+              <p>* Disponibilidad sujeta a rotacion de inventario</p>
+              <p>* Cotizacion sujeta a analisis y aprobacion</p>
+              <p>* Tecno Nacho S.A.S. no es responsable de configuraciones finales</p>
               <p>* No hay devoluciones en licenciamiento</p>
-              <p>* Facturadores electrónicos</p>
+              <p>* Facturadores electronicos</p>
               <p>* Valores NO incluyen transporte</p>
             </div>
 
