@@ -15,7 +15,6 @@ function DraggableProductCard({
 }) {
   const ref = useRef(null);
   
-  console.log(`🎯 Renderizando tarjeta: ${product.name} (índice: ${index})`);
   
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.PRODUCT,

@@ -1041,7 +1041,7 @@ function App() {
   onChange={handleQuoteMetaChange}
   generating={generating}
   onGenerate={() => generatePdf(false)}
-  documentType={documentType}  // ✅ Esto es importante
+  documentType={documentType} 
 />
         <SearchPanel
           mode={mode}
