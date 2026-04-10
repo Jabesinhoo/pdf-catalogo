@@ -87,6 +87,18 @@ function getQuoteNumbers(product) {
   const ivaType = product.ivaType || 'gravado';
   let ivaRate = Number(product.ivaRate ?? 0) || 0;
 
+  let finalPrice = parseMoney(product.price);
+  if (product.priceAdjustOp && product.priceAdjustValue) {
+    const adjustValue = parseFloat(product.priceAdjustValue);
+    if (!isNaN(adjustValue) && adjustValue > 0) {
+      if (product.priceAdjustOp === '/') {
+        finalPrice = finalPrice / adjustValue;
+      } else if (product.priceAdjustOp === '*') {
+        finalPrice = finalPrice * adjustValue;
+      }
+    }
+  }
+
   const isPrecioFinal = ivaType === 'precio_final';
   const isExcluido = ivaType === 'excluido';
   const isExento = ivaType === 'exento';
@@ -99,7 +111,7 @@ function getQuoteNumbers(product) {
   else if (isExcluido) ivaRate = 0;
   else if (isPrecioFinal) ivaRate = 0;
 
-  const priceWithIva = parseMoney(product.price);
+  const priceWithIva = finalPrice;
 
   const priceWithoutIva = (ivaRate > 0 && !isExcluido && !isPrecioFinal)
     ? Math.round(priceWithIva / (1 + ivaRate / 100))

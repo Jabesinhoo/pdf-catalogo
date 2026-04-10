@@ -10,12 +10,12 @@ import SavedDocuments from "./components/SavedDocuments";
 import SearchPanel from "./components/SearchPanel";
 import SearchHistory from "./components/SearchHistory";
 import ResultsToolbar from "./components/ResultsToolbar";
-import ProductCard from "./components/ProductCard";
 import EditProductModal from "./components/EditProductModal";
 import QuoteForm from "./components/QuoteForm";
 import ConfirmModal from "./components/ConfirmModal";
 import ErrorModal from "./components/ErrorModal";
 import MassIvaEditor from "./components/MassIvaEditor";
+import MassPriceAdjustModal from "./components/MassPriceAdjustModal";
 import { useTheme } from "./hooks/useTheme";
 import { createEmptyProduct } from "./utils/productFactory";
 import { apiFetch } from "./services/api";
@@ -85,13 +85,15 @@ function normalizeProduct(product = {}) {
     images: product.images || [],
     productUrl: product.productUrl || "",
     selected: product.selected ?? true,
+    priceAdjustOp: product.priceAdjustOp || "",
+    priceAdjustValue: product.priceAdjustValue || "",
   };
 }
 
 function App() {
   const { theme, toggleTheme } = useTheme();
 
-  // ===== AUTENTICACIÓN =====
+  // ===== AUTENTICACION =====
   const [authUser, setAuthUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -127,17 +129,17 @@ function App() {
   const [dbLoading, setDbLoading] = useState(false);
   const [undoToast, setUndoToast] = useState({ show: false, message: "", onUndo: null });
 
-  // Selección masiva para eliminar
+  // Seleccion masiva para eliminar
   const [batchSelectedIds, setBatchSelectedIds] = useState([]);
 
-  // Modales de confirmación
+  // Modales de confirmacion
   const [showNewQuoteModal, setShowNewQuoteModal] = useState(false);
   const [showNewCatalogModal, setShowNewCatalogModal] = useState(false);
+  const [showMassPriceModal, setShowMassPriceModal] = useState(false);
 
   // Estados de ordenamiento
   const [sortBy, setSortBy] = useState("manual");
   const [sortOrder, setSortOrder] = useState("asc");
-
 
   const [quoteMeta, setQuoteMeta] = useState({
     companyName: "TECNONACHO S.A.S",
@@ -150,7 +152,7 @@ function App() {
     phone: "",
     email: "",
     validityDays: 1,
-    documentTitle: "CATÁLOGO",
+    documentTitle: "CATALOGO",
     quoteNumber: "",
     paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
   });
@@ -160,9 +162,10 @@ function App() {
   const [draft, setDraft] = useState({
     name: "", sku: "", price: "", quantity: 1, ivaRate: 0, ivaType: 'gravado',
     totalPrice: "", shortDescription: "", image: "", images: [], productUrl: "", selected: true,
+    priceAdjustOp: "", priceAdjustValue: "",
   });
 
-  // Función helper para mostrar modales de confirmación
+  // Funcion helper para mostrar modales de confirmacion
   const showConfirmModal = (title, message, onConfirm, confirmText = "Confirmar", cancelText = "Cancelar") => {
     setConfirmModal({
       open: true,
@@ -177,12 +180,12 @@ function App() {
     });
   };
 
-  // Función helper para mostrar errores
+  // Funcion helper para mostrar errores
   const showErrorModal = (errors) => {
     setErrorModal({ open: true, errors });
   };
 
-  // ===== VERIFICAR SESIÓN AL INICIAR =====
+  // ===== VERIFICAR SESION AL INICIAR =====
   useEffect(() => {
     async function checkAuth() {
       try {
@@ -195,7 +198,7 @@ function App() {
           localStorage.setItem('tecnocotizador_user', data.user.username);
         }
       } catch (error) {
-        console.error('Error verificando autenticación:', error);
+        console.error('Error verificando autenticacion:', error);
       } finally {
         setAuthLoading(false);
       }
@@ -234,7 +237,7 @@ function App() {
     setError("");
     setQuoteMeta((prev) => ({
       ...prev,
-      documentTitle: type === "quote" ? "COTIZACIÓN" : "CATÁLOGO",
+      documentTitle: type === "quote" ? "COTIZACION" : "CATALOGO",
     }));
   }
 
@@ -309,7 +312,7 @@ function App() {
     }
   }, [authUser]);
 
-  // ===== FUNCIONES PARA CATEGORÍAS =====
+  // ===== FUNCIONES PARA CATEGORIAS =====
   useEffect(() => {
     async function loadCategories() {
       try {
@@ -319,8 +322,8 @@ function App() {
         });
         setCategories(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("Error cargando categorías:", err);
-        setError(err.message || "No se pudieron cargar las categorías.");
+        console.error("Error cargando categorias:", err);
+        setError(err.message || "No se pudieron cargar las categorias.");
       }
     }
     if (authUser) {
@@ -376,7 +379,6 @@ function App() {
     return isNaN(number) ? 0 : number;
   };
 
-  // Función para obtener productos ordenados según sortBy/sortOrder
   const getSortedProducts = (productsToSort) => {
     if (!productsToSort || productsToSort.length === 0) return [];
 
@@ -478,7 +480,7 @@ function App() {
       const queries = splitQueries(queryText);
 
       if (!queries.length && selectedCategories.length === 0) {
-        throw new Error("Escribe una búsqueda o selecciona al menos una categoría.");
+        throw new Error("Escribe una busqueda o selecciona al menos una categoria.");
       }
 
       let allNewProducts = [];
@@ -518,8 +520,8 @@ function App() {
   function resetCatalog() {
     if (products.length > 0) {
       showConfirmModal(
-        "Limpiar catálogo",
-        "¿Estás seguro de limpiar todo el catálogo? Esta acción no se puede deshacer.",
+        "Limpiar catalogo",
+        "Estas seguro de limpiar todo el catalogo? Esta accion no se puede deshacer.",
         () => {
           setProducts([]);
           setSearchHistory([]);
@@ -530,7 +532,7 @@ function App() {
           setStockStatuses(["instock"]);
           setBatchSelectedIds([]);
         },
-        "Sí, limpiar",
+        "Si, limpiar",
         "Cancelar"
       );
     } else {
@@ -565,7 +567,7 @@ function App() {
 
     showConfirmModal(
       "Eliminar producto",
-      `¿Estás seguro de eliminar "${productToRemove?.name || 'este producto'}"?`,
+      `Estas seguro de eliminar "${productToRemove?.name || 'este producto'}"?`,
       () => {
         setProducts((prev) => prev.filter((product) => product.id !== productId));
         setBatchSelectedIds(prev => prev.filter(id => id !== productId));
@@ -613,7 +615,7 @@ function App() {
 
     showConfirmModal(
       "Eliminar productos",
-      `¿Estás seguro de eliminar ${batchSelectedIds.length} producto${batchSelectedIds.length !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`,
+      `Estas seguro de eliminar ${batchSelectedIds.length} producto${batchSelectedIds.length !== 1 ? 's' : ''}? Esta accion no se puede deshacer.`,
       () => {
         setProducts(prev => prev.filter(p => !batchSelectedIds.includes(p.id)));
         setBatchSelectedIds([]);
@@ -650,6 +652,37 @@ function App() {
     }));
   }
 
+  function handleOpenMassPriceAdjust() {
+    if (batchSelectedIds.length === 0) return;
+    setShowMassPriceModal(true);
+  }
+
+  function handleApplyMassPriceAdjust(operation, value) {
+  if (batchSelectedIds.length === 0) return;
+  
+  console.log("Aplicando ajuste masivo:", operation, value, "a", batchSelectedIds.length, "productos");
+  
+  setProducts(prevProducts => {
+    const updatedProducts = prevProducts.map(product => {
+      if (batchSelectedIds.includes(product.id)) {
+        console.log("Actualizando producto:", product.name, "precio original:", product.price);
+        return {
+          ...product,
+          priceAdjustOp: operation,
+          priceAdjustValue: String(value),
+          _updatedAt: Date.now()
+        };
+      }
+      return product;
+    });
+    
+    console.log("Productos actualizados:", updatedProducts.length);
+    return [...updatedProducts]; 
+  });
+  
+
+}
+
   function handleCreateManualProduct() {
     const product = normalizeProduct(createEmptyProduct());
     setProducts((prev) => [{ ...product, selected: true }, ...prev]);
@@ -683,6 +716,8 @@ function App() {
       images: product.images || [],
       productUrl: product.productUrl || "",
       selected: product.selected ?? true,
+      priceAdjustOp: product.priceAdjustOp || "",
+      priceAdjustValue: product.priceAdjustValue || "",
     });
     setIsEditOpen(true);
   }
@@ -760,14 +795,13 @@ function App() {
     setBatchSelectedIds([]);
 
     const today = new Date().toISOString().slice(0, 10);
-    setQuoteMeta({
-      ...quoteMeta,
-      customerName: "",
-      quoteNumber: "",
+    setQuoteMeta((prev) => ({
+      ...prev,
       date: today,
-      documentTitle: "COTIZACIÓN",
+      documentTitle: "COTIZACION",
+      quoteNumber: "",
       paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
-    });
+    }));
 
     setShowNewQuoteModal(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -784,7 +818,7 @@ function App() {
 
     setQuoteMeta((prev) => ({
       ...prev,
-      documentTitle: "CATÁLOGO",
+      documentTitle: "CATALOGO",
     }));
 
     setShowNewCatalogModal(false);
@@ -817,17 +851,15 @@ function App() {
 
       setQuoteMeta(currentQuoteMeta);
 
-      // Determinar el título del documento para guardar y para el nombre del archivo
       let documentTitle = "";
       if (documentType === "quote") {
-        documentTitle = currentQuoteMeta.documentTitle || 
-                        currentQuoteMeta.customerName || 
-                        "Cotización";
+        documentTitle = currentQuoteMeta.documentTitle ||
+          currentQuoteMeta.customerName ||
+          "Cotizacion";
       } else {
-        documentTitle = currentQuoteMeta.documentTitle || "Catálogo";
+        documentTitle = currentQuoteMeta.documentTitle || "Catalogo";
       }
 
-      // Limpiar el título para usarlo como nombre de archivo (sin caracteres especiales)
       const cleanFileName = documentTitle
         .replace(/[^a-z0-9]/gi, '_')
         .replace(/_+/g, '_')
@@ -884,7 +916,6 @@ function App() {
         if (!saveOnly) {
           const a = document.createElement("a");
           a.href = downloadUrl;
-          // Usar el título personalizado para el nombre del archivo
           const fileName = `${cleanFileName}-${Date.now()}.pdf`;
           a.download = fileName;
           document.body.appendChild(a);
@@ -949,7 +980,7 @@ function App() {
         date: today,
         customerName: doc.customerName || doc.quoteMeta?.customerName || "",
         quoteNumber: doc.quoteMeta?.quoteNumber || "",
-        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACIÓN" : "CATÁLOGO")
+        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO")
       };
 
       setQuoteMeta(updatedQuoteMeta);
@@ -961,9 +992,9 @@ function App() {
     if (products.length > 0) {
       showConfirmModal(
         "Cargar documento",
-        "¿Cargar este documento? Se perderán los cambios actuales.",
+        "Cargar este documento? Se perderan los cambios actuales.",
         loadWithCurrentDate,
-        "Sí, cargar",
+        "Si, cargar",
         "Cancelar"
       );
     } else {
@@ -983,14 +1014,14 @@ function App() {
 
     showConfirmModal(
       "Generar PDF",
-      "Este documento no tiene un PDF asociado. ¿Deseas generarlo ahora?",
+      "Este documento no tiene un PDF asociado. Deseas generarlo ahora?",
       () => {
         handleLoadDocument(doc);
         setTimeout(() => {
           generatePdf(false);
         }, 500);
       },
-      "Sí, generar",
+      "Si, generar",
       "Cancelar"
     );
   }
@@ -1036,13 +1067,14 @@ function App() {
           onRefresh={handleRefreshDocuments}
         />
 
-      <QuoteForm
-  value={quoteMeta}
-  onChange={handleQuoteMetaChange}
-  generating={generating}
-  onGenerate={() => generatePdf(false)}
-  documentType={documentType} 
-/>
+        <QuoteForm
+          value={quoteMeta}
+          onChange={handleQuoteMetaChange}
+          generating={generating}
+          onGenerate={() => generatePdf(false)}
+          documentType={documentType}
+        />
+
         <SearchPanel
           mode={mode}
           setMode={setMode}
@@ -1077,6 +1109,7 @@ function App() {
           onDeleteBatch={handleDeleteBatch}
           onNewQuote={openNewQuoteModal}
           onNewCatalog={openNewCatalogModal}
+          onOpenMassPriceAdjust={handleOpenMassPriceAdjust}
           batchSelectedCount={batchSelectedIds.length}
           generating={generating}
           documentType={documentType}
@@ -1154,14 +1187,13 @@ function App() {
           />
         )}
 
-        {/* Modales de confirmación */}
         <ConfirmModal
           isOpen={showNewQuoteModal}
           onClose={closeNewQuoteModal}
           onConfirm={handleNewQuoteConfirm}
-          title="Nueva cotización"
-          message="¿Estás seguro? Se iniciará una cotización en blanco."
-          confirmText="Sí, empezar nueva"
+          title="Nueva cotizacion"
+          message="Estas seguro? Se iniciara una cotizacion en blanco."
+          confirmText="Si, empezar nueva"
           cancelText="Cancelar"
         />
 
@@ -1169,13 +1201,12 @@ function App() {
           isOpen={showNewCatalogModal}
           onClose={closeNewCatalogModal}
           onConfirm={handleNewCatalogConfirm}
-          title="Nuevo catálogo"
-          message="¿Estás seguro? Se iniciará un catálogo en blanco."
-          confirmText="Sí, empezar nuevo"
+          title="Nuevo catalogo"
+          message="Estas seguro? Se iniciara un catalogo en blanco."
+          confirmText="Si, empezar nuevo"
           cancelText="Cancelar"
         />
 
-        {/* Modal de confirmación genérico */}
         <ConfirmModal
           isOpen={confirmModal.open}
           onClose={() => setConfirmModal(prev => ({ ...prev, open: false }))}
@@ -1186,12 +1217,18 @@ function App() {
           cancelText={confirmModal.cancelText}
         />
 
-        {/* Modal de error */}
         <ErrorModal
           isOpen={errorModal.open}
           onClose={() => setErrorModal({ open: false, errors: null })}
           title="Error"
           errors={errorModal.errors}
+        />
+
+        <MassPriceAdjustModal
+          isOpen={showMassPriceModal}
+          onClose={() => setShowMassPriceModal(false)}
+          selectedCount={batchSelectedIds.length}
+          onApply={handleApplyMassPriceAdjust}
         />
       </MainLayout>
     </DndProvider>

@@ -1,4 +1,4 @@
-import { ExternalLink, Copy, Square, CheckSquare, Edit2, Trash2, Package } from "lucide-react";
+import { ExternalLink, Copy, Square, CheckSquare, Edit2, Trash2, Calculator } from "lucide-react";
 import { formatMoney, parseMoney } from "../utils/quoteMath";
 import { useState } from "react";
 
@@ -16,11 +16,12 @@ function ProductCard({
   onSelectForBatch = null,
 }) {
 
-  // Estado local para la cantidad
   const [localQuantity, setLocalQuantity] = useState(String(product?.quantity ?? 1));
   const [isEditing, setIsEditing] = useState(false);
+  const [showPriceAdjust, setShowPriceAdjust] = useState(false);
+  const [priceAdjustOp, setPriceAdjustOp] = useState(product?.priceAdjustOp || '');
+  const [priceAdjustValue, setPriceAdjustValue] = useState(product?.priceAdjustValue || '');
 
-  // Calcular cantidad actual (local si se está editando, sino la del producto)
   const currentQuantity = isEditing
     ? (parseInt(localQuantity, 10) || 0)
     : (product?.quantity ?? 1);
@@ -42,38 +43,50 @@ function ProductCard({
     }
   }
 
-  // Sincronizar cuando el producto cambia externamente
   if (!isEditing && String(product?.quantity ?? 1) !== localQuantity) {
     setLocalQuantity(String(product?.quantity ?? 1));
   }
 
-  // Calcular precio sin IVA (el precio original ya incluye IVA)
-  const calculatePriceWithoutIva = () => {
-    if (!product?.price) return null;
+  const calculateAdjustedPrice = () => {
+    const originalPrice = parseMoney(product?.price || 0);
+    if (!priceAdjustOp || !priceAdjustValue) return originalPrice;
     
-    // Si es PRECIO FINAL, no mostrar desglose
+    const value = parseFloat(priceAdjustValue);
+    if (isNaN(value)) return originalPrice;
+    
+    if (priceAdjustOp === '/') {
+      return originalPrice / value;
+    } else if (priceAdjustOp === '*') {
+      return originalPrice * value;
+    }
+    return originalPrice;
+  };
+
+  const adjustedPrice = calculateAdjustedPrice();
+  const displayPrice = adjustedPrice;
+  const displayPriceFormatted = formatMoney(displayPrice);
+
+  const calculatePriceWithoutIva = () => {
+    if (!displayPrice) return null;
+    
     if (product.ivaType === 'precio_final') return null;
 
-    const priceWithIva = parseMoney(product.price);
     let ivaRate = 0;
 
     if (product.ivaType === 'gravado5') ivaRate = 5;
     else if (product.ivaType === 'gravado' || product.ivaType === 'gravado19') ivaRate = 19;
     else ivaRate = product.ivaRate || 0;
 
-    if (ivaRate === 0) return formatMoney(priceWithIva);
-    const priceWithoutIva = Math.round(priceWithIva / (1 + ivaRate / 100));
+    if (ivaRate === 0) return formatMoney(displayPrice);
+    const priceWithoutIva = Math.round(displayPrice / (1 + ivaRate / 100));
     return formatMoney(priceWithoutIva);
   };
 
-  // Calcular monto del IVA
   const calculateIvaAmount = () => {
-    if (!product?.price) return null;
+    if (!displayPrice) return null;
     
-    // Si es PRECIO FINAL, no mostrar IVA discriminado
     if (product.ivaType === 'precio_final') return null;
 
-    const priceWithIva = parseMoney(product.price);
     let ivaRate = 0;
 
     if (product.ivaType === 'gravado5') ivaRate = 5;
@@ -81,12 +94,11 @@ function ProductCard({
     else ivaRate = product.ivaRate || 0;
 
     if (ivaRate === 0) return null;
-    const priceWithoutIva = Math.round(priceWithIva / (1 + ivaRate / 100));
-    const ivaAmount = priceWithIva - priceWithoutIva;
+    const priceWithoutIva = Math.round(displayPrice / (1 + ivaRate / 100));
+    const ivaAmount = displayPrice - priceWithoutIva;
     return formatMoney(ivaAmount);
   };
 
-  const priceWithIva = formatMoney(parseMoney(product?.price || 0));
   const priceWithoutIva = calculatePriceWithoutIva();
   const ivaAmount = calculateIvaAmount();
   const isGravado = product.ivaType === 'gravado' || product.ivaType === 'gravado19' || product.ivaType === 'gravado5';
@@ -94,33 +106,28 @@ function ProductCard({
   const isExcluido = product.ivaType === 'excluido';
   const isPrecioFinal = product.ivaType === 'precio_final';
 
-  // Calcular total en tiempo real
   const calculateTotal = () => {
-    if (!product?.price) return null;
-    const priceWithIva = parseMoney(product.price);
+    if (!displayPrice) return null;
     const quantity = Math.max(1, currentQuantity);
-    const total = priceWithIva * quantity;
+    const total = displayPrice * quantity;
     return formatMoney(total);
   };
 
   const totalValue = calculateTotal();
 
-  // Obtener el texto del tipo de IVA
   const getIvaTypeText = () => {
     if (isPrecioFinal) return 'Precio Final';
     if (isExcluido) return 'Excluido';
     if (isExento) return 'Exento 0%';
-    if (product.ivaType === 'gravado5') return `Gravado 5%`;
-    return `Gravado ${product.ivaRate || 19}%`;
+    if (product.ivaType === 'gravado5') return 'Gravado 5%';
+    return 'Gravado ' + (product.ivaRate || 19) + '%';
   };
 
-  // Manejar cambio de cantidad
   const handleQuantityChange = (e) => {
     setLocalQuantity(e.target.value);
     setIsEditing(true);
   };
 
-  // Manejar al perder el foco
   const handleQuantityBlur = () => {
     let newQuantity = parseInt(localQuantity, 10);
 
@@ -138,16 +145,25 @@ function ProductCard({
     setIsEditing(false);
   };
 
-  // 👇 OBTENER STOCK DEL PRODUCTO (si existe)
-  const stock = product?.stock ?? product?.stock_quantity ?? null;
-  const hasStock = stock !== null && stock !== undefined;
+  const handlePriceAdjustOpChange = (op) => {
+    setPriceAdjustOp(op);
+    onChange?.({ priceAdjustOp: op, priceAdjustValue: priceAdjustValue });
+  };
+
+  const handlePriceAdjustValueChange = (e) => {
+    const value = e.target.value;
+    setPriceAdjustValue(value);
+    onChange?.({ priceAdjustOp: priceAdjustOp, priceAdjustValue: value });
+  };
+
+  const originalPriceFormatted = formatMoney(parseMoney(product?.price || 0));
+  const hasAdjustment = priceAdjustOp && priceAdjustValue;
 
   return (
     <article
-      className={`product-card ${product.productUrl ? 'clickable' : ''} ${isSelectedForBatch ? 'batch-selected' : ''}`}
+      className={'product-card ' + (product.productUrl ? 'clickable' : '') + ' ' + (isSelectedForBatch ? 'batch-selected' : '')}
       onClick={handleCardClick}
     >
-      {/* Checkbox de selección masiva */}
       {onSelectForBatch && (
         <button
           type="button"
@@ -162,7 +178,6 @@ function ProductCard({
         </button>
       )}
 
-      {/* Barra de acciones superior */}
       <div className="product-card__actions-bar">
         <button
           className="product-card__action-btn product-card__action-btn--toggle"
@@ -208,6 +223,17 @@ function ProductCard({
           <Trash2 size={18} />
         </button>
 
+        <button
+          className={'product-card__action-btn product-card__action-btn--adjust ' + (showPriceAdjust ? 'active' : '')}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPriceAdjust(!showPriceAdjust);
+          }}
+          title="Ajustar precio (dividir/multiplicar)"
+        >
+          <Calculator size={18} />
+        </button>
+
         {product.productUrl && (
           <a
             href={product.productUrl}
@@ -222,17 +248,14 @@ function ProductCard({
         )}
       </div>
 
-      {/* Imagen */}
       <div className="product-card__image">
         {product?.image ? (
           <img src={product.image} alt={product.name || "Producto"} />
         ) : (
-          <div className="product-card__image-placeholder">
-          </div>
+          <div className="product-card__image-placeholder"></div>
         )}
       </div>
 
-      {/* Contenido */}
       <div className="product-card__content">
         <h3 className="product-card__title">{product?.name || "Sin nombre"}</h3>
 
@@ -242,25 +265,40 @@ function ProductCard({
             <span className="product-card__detail-value">{product?.sku || "N/D"}</span>
           </div>
 
+          {hasAdjustment && (
+            <div className="product-card__detail-row">
+              <span className="product-card__detail-label">Precio original</span>
+              <span className="product-card__detail-value price-original">{originalPriceFormatted}</span>
+            </div>
+          )}
+
           <div className="product-card__detail-row">
             <span className="product-card__detail-label">
-              {isPrecioFinal ? "PRECIO FINAL" : "Precio (IVA incl.)"}
+              {isPrecioFinal ? "PRECIO FINAL" : (hasAdjustment ? "Precio ajustado" : "Precio (IVA incl.)")}
             </span>
-            <span className="product-card__detail-value price">{priceWithIva}</span>
+            <span className={'product-card__detail-value price ' + (hasAdjustment ? 'price-adjusted' : '')}>
+              {displayPriceFormatted}
+            </span>
           </div>
+
+          {hasAdjustment && (
+            <div className="product-card__detail-row">
+              <span className="product-card__detail-label">Ajuste aplicado</span>
+              <span className="product-card__detail-value price-adjust-info">
+                {priceAdjustOp === '/' ? 'Dividido entre' : 'Multiplicado por'} {priceAdjustValue}
+              </span>
+            </div>
+          )}
 
           {product?.stockDisplay && (
             <div className="product-card__detail-row">
-              <span className="product-card__detail-label">
-                Disponibilidad
-              </span>
-              <span className={`product-card__stock-value ${product?.stockStatus === 'instock' ? 'stock-in' : product?.stockStatus === 'onbackorder' ? 'stock-backorder' : 'stock-out'}`}>
+              <span className="product-card__detail-label">Disponibilidad</span>
+              <span className={'product-card__stock-value ' + (product?.stockStatus === 'instock' ? 'stock-in' : product?.stockStatus === 'onbackorder' ? 'stock-backorder' : 'stock-out')}>
                 {product.stockDisplay}
               </span>
             </div>
           )}
 
-          {/* Mostrar desglose de IVA solo si es gravado y NO es PRECIO FINAL */}
           {isGravado && ivaAmount && !isPrecioFinal && (
             <>
               <div className="product-card__detail-row">
@@ -274,10 +312,9 @@ function ProductCard({
             </>
           )}
 
-          {/* Badge de tipo de IVA */}
           <div className="product-card__detail-row">
             <span className="product-card__detail-label">Tipo IVA</span>
-            <span className={`product-card__iva-badge ${isPrecioFinal ? 'precio-final' : isExcluido ? 'excluido' : isExento ? 'exento' : 'gravado'}`}>
+            <span className={'product-card__iva-badge ' + (isPrecioFinal ? 'precio-final' : isExcluido ? 'excluido' : isExento ? 'exento' : 'gravado')}>
               {getIvaTypeText()}
             </span>
           </div>
@@ -299,10 +336,39 @@ function ProductCard({
         </div>
 
         <p className="product-card__description">
-          {product?.shortDescription || "Sin descripción corta"}
+          {product?.shortDescription || "Sin descripcion corta"}
         </p>
 
-        {/* Campos de edición */}
+        {showPriceAdjust && (
+          <div className="product-card__price-adjust">
+            <div className="product-card__field-group">
+              <label>Ajuste de precio</label>
+              <div className="price-adjust-controls">
+                <select
+                  value={priceAdjustOp}
+                  onChange={(e) => handlePriceAdjustOpChange(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <option value="">Seleccionar</option>
+                  <option value="/">Dividir entre (/)</option>
+                  <option value="*">Multiplicar por (*)</option>
+                </select>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="Valor"
+                  value={priceAdjustValue}
+                  onChange={handlePriceAdjustValueChange}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <small className="price-adjust-hint">
+                Ej: /1.05 para quitar IVA del 5% | *0.95 para descuento del 5%
+              </small>
+            </div>
+          </div>
+        )}
+
         <div className="product-card__edit-fields">
           <div className="product-card__field-group">
             <label>Tipo IVA</label>

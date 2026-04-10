@@ -6,7 +6,8 @@ import {
   BookOpen, 
   CheckSquare, 
   Square,
-  Search
+  Search,
+  Calculator
 } from "lucide-react";
 import SortControls from "./SortControls";
 
@@ -26,6 +27,7 @@ function ResultsToolbar({
   onDeleteBatch,
   onNewQuote,
   onNewCatalog,
+  onOpenMassPriceAdjust,
   batchSelectedCount = 0,
   generating = false,
   documentType = "catalog",
@@ -59,10 +61,10 @@ function ResultsToolbar({
               className="secondaryBtn smallBtn" 
               onClick={onNewQuote} 
               type="button"
-              title="Empezar una nueva cotización desde cero"
+              title="Empezar una nueva cotizacion desde cero"
             >
               <RefreshCw size={14} />
-              <span>Nueva cotización</span>
+              <span>Nueva cotizacion</span>
             </button>
           )}
 
@@ -71,10 +73,10 @@ function ResultsToolbar({
               className="secondaryBtn smallBtn" 
               onClick={onNewCatalog} 
               type="button"
-              title="Empezar un nuevo catálogo desde cero"
+              title="Empezar un nuevo catalogo desde cero"
             >
               <BookOpen size={14} />
-              <span>Nuevo catálogo</span>
+              <span>Nuevo catalogo</span>
             </button>
           )}
           
@@ -115,14 +117,24 @@ function ResultsToolbar({
             <Square size={16} />
           </button>
           {batchSelectedCount > 0 && (
-            <button
-              className="iconBtn small dangerBtn"
-              onClick={onDeleteBatch}
-              type="button"
-              title={`Eliminar ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
-            >
-              <Trash2 size={16} />
-            </button>
+            <>
+              <button
+                className="iconBtn small price-adjust-btn"
+                onClick={onOpenMassPriceAdjust}
+                type="button"
+                title={`Ajustar precio de ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
+              >
+                <Calculator size={16} />
+              </button>
+              <button
+                className="iconBtn small dangerBtn"
+                onClick={onDeleteBatch}
+                type="button"
+                title={`Eliminar ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
           )}
         </div>
 
@@ -133,7 +145,7 @@ function ResultsToolbar({
           type="button"
         >
           <FileText size={14} />
-          <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotización" : "Generar PDF"}</span>
+          <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotizacion" : "Generar Catalogo"}</span>
         </button>
       </div>
 
