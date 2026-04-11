@@ -1,6 +1,6 @@
 import { ExternalLink, Copy, Square, CheckSquare, Edit2, Trash2, Calculator } from "lucide-react";
 import { formatMoney, parseMoney } from "../utils/quoteMath";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 function ProductCard({
   product,
@@ -19,8 +19,13 @@ function ProductCard({
   const [localQuantity, setLocalQuantity] = useState(String(product?.quantity ?? 1));
   const [isEditing, setIsEditing] = useState(false);
   const [showPriceAdjust, setShowPriceAdjust] = useState(false);
-  const [priceAdjustOp, setPriceAdjustOp] = useState(product?.priceAdjustOp || '');
-  const [priceAdjustValue, setPriceAdjustValue] = useState(product?.priceAdjustValue || '');
+  const [localPriceAdjustOp, setLocalPriceAdjustOp] = useState(product?.priceAdjustOp || '');
+  const [localPriceAdjustValue, setLocalPriceAdjustValue] = useState(product?.priceAdjustValue || '');
+
+  useEffect(() => {
+    setLocalPriceAdjustOp(product?.priceAdjustOp || '');
+    setLocalPriceAdjustValue(product?.priceAdjustValue || '');
+  }, [product?.priceAdjustOp, product?.priceAdjustValue, product?.id]);
 
   const currentQuantity = isEditing
     ? (parseInt(localQuantity, 10) || 0)
@@ -47,23 +52,25 @@ function ProductCard({
     setLocalQuantity(String(product?.quantity ?? 1));
   }
 
-  const calculateAdjustedPrice = () => {
+  const calculateAdjustedPrice = useMemo(() => {
     const originalPrice = parseMoney(product?.price || 0);
-    if (!priceAdjustOp || !priceAdjustValue) return originalPrice;
+    const op = localPriceAdjustOp;
+    const val = localPriceAdjustValue;
     
-    const value = parseFloat(priceAdjustValue);
+    if (!op || !val) return originalPrice;
+    
+    const value = parseFloat(val);
     if (isNaN(value)) return originalPrice;
     
-    if (priceAdjustOp === '/') {
+    if (op === '/') {
       return originalPrice / value;
-    } else if (priceAdjustOp === '*') {
+    } else if (op === '*') {
       return originalPrice * value;
     }
     return originalPrice;
-  };
+  }, [product?.price, localPriceAdjustOp, localPriceAdjustValue]);
 
-  const adjustedPrice = calculateAdjustedPrice();
-  const displayPrice = adjustedPrice;
+  const displayPrice = calculateAdjustedPrice;
   const displayPriceFormatted = formatMoney(displayPrice);
 
   const calculatePriceWithoutIva = () => {
@@ -146,18 +153,18 @@ function ProductCard({
   };
 
   const handlePriceAdjustOpChange = (op) => {
-    setPriceAdjustOp(op);
-    onChange?.({ priceAdjustOp: op, priceAdjustValue: priceAdjustValue });
+    setLocalPriceAdjustOp(op);
+    onChange?.({ priceAdjustOp: op, priceAdjustValue: localPriceAdjustValue });
   };
 
   const handlePriceAdjustValueChange = (e) => {
     const value = e.target.value;
-    setPriceAdjustValue(value);
-    onChange?.({ priceAdjustOp: priceAdjustOp, priceAdjustValue: value });
+    setLocalPriceAdjustValue(value);
+    onChange?.({ priceAdjustOp: localPriceAdjustOp, priceAdjustValue: value });
   };
 
   const originalPriceFormatted = formatMoney(parseMoney(product?.price || 0));
-  const hasAdjustment = priceAdjustOp && priceAdjustValue;
+  const hasAdjustment = localPriceAdjustOp && localPriceAdjustValue;
 
   return (
     <article
@@ -174,7 +181,7 @@ function ProductCard({
           }}
           title={isSelectedForBatch ? "Deseleccionar para eliminar" : "Seleccionar para eliminar"}
         >
-          {isSelectedForBatch ? <CheckSquare size={20} /> : <Square size={20} />}
+          {isSelectedForBatch ? <CheckSquare size={18} /> : <Square size={18} />}
         </button>
       )}
 
@@ -187,7 +194,7 @@ function ProductCard({
           }}
           title={checked ? "Excluir del PDF" : "Incluir en PDF"}
         >
-          {checked ? <CheckSquare size={18} /> : <Square size={18} />}
+          {checked ? <CheckSquare size={16} /> : <Square size={16} />}
         </button>
 
         <button
@@ -198,7 +205,7 @@ function ProductCard({
           }}
           title="Editar producto"
         >
-          <Edit2 size={18} />
+          <Edit2 size={16} />
         </button>
 
         <button
@@ -209,7 +216,7 @@ function ProductCard({
           }}
           title="Duplicar producto"
         >
-          <Copy size={18} />
+          <Copy size={16} />
         </button>
 
         <button
@@ -220,7 +227,7 @@ function ProductCard({
           }}
           title="Eliminar producto"
         >
-          <Trash2 size={18} />
+          <Trash2 size={16} />
         </button>
 
         <button
@@ -231,7 +238,7 @@ function ProductCard({
           }}
           title="Ajustar precio (dividir/multiplicar)"
         >
-          <Calculator size={18} />
+          <Calculator size={16} />
         </button>
 
         {product.productUrl && (
@@ -243,7 +250,7 @@ function ProductCard({
             onClick={(e) => e.stopPropagation()}
             title="Ver producto en Tecnonacho.com"
           >
-            <ExternalLink size={18} />
+            <ExternalLink size={16} />
           </a>
         )}
       </div>
@@ -285,7 +292,7 @@ function ProductCard({
             <div className="product-card__detail-row">
               <span className="product-card__detail-label">Ajuste aplicado</span>
               <span className="product-card__detail-value price-adjust-info">
-                {priceAdjustOp === '/' ? 'Dividido entre' : 'Multiplicado por'} {priceAdjustValue}
+                {localPriceAdjustOp === '/' ? 'Dividido entre' : 'Multiplicado por'} {localPriceAdjustValue}
               </span>
             </div>
           )}
@@ -345,7 +352,7 @@ function ProductCard({
               <label>Ajuste de precio</label>
               <div className="price-adjust-controls">
                 <select
-                  value={priceAdjustOp}
+                  value={localPriceAdjustOp}
                   onChange={(e) => handlePriceAdjustOpChange(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -357,7 +364,7 @@ function ProductCard({
                   type="number"
                   step="any"
                   placeholder="Valor"
-                  value={priceAdjustValue}
+                  value={localPriceAdjustValue}
                   onChange={handlePriceAdjustValueChange}
                   onClick={(e) => e.stopPropagation()}
                 />

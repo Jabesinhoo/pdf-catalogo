@@ -264,7 +264,8 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
       day: "2-digit",
     });
 
-  const documentTitle = quoteMeta.documentTitle || "COTIZACION";
+  // TITULO FIJO EN EL PDF - SIEMPRE DICE "COTIZACION"
+  const pdfTitle = "COTIZACION";
 
   const pageClass = orientation === 'landscape' ? 'page landscape' : 'page';
   const containerClass = orientation === 'landscape' ? 'container landscape' : 'container';
@@ -275,7 +276,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(documentTitle)} - Tecnonacho</title>
+        <title>Cotización Tecnonacho</title>
         <style>
           * {
             box-sizing: border-box;
@@ -736,7 +737,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <div class="logo-box">
                 ${logoSrc ? `<img src="${logoSrc}" alt="Tecnonacho" />` : ''}
               </div>
-              <div class="doc-title">${escapeHtml(documentTitle)}</div>
+              <div class="doc-title">${escapeHtml(pdfTitle)}</div>
             </div>
 
             <div class="meta-grid">

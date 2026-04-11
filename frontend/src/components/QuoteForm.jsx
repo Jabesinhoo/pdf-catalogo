@@ -198,20 +198,6 @@ function QuoteForm({
                   </label>
                 </div>
 
-                {/* N° Cotización */}
-                <div className="quoteForm__field">
-                  <label>
-                    <Hash size={14} />
-                    <span>N° Cotización</span>
-                    <input
-                      type="text"
-                      value={data.quoteNumber || ""}
-                      onChange={(e) => handleChange("quoteNumber", e.target.value)}
-                      placeholder="Ej: 001-2026"
-                    />
-                  </label>
-                </div>
-
                 {/* Cargo */}
                 <div className="quoteForm__field">
                   <label>

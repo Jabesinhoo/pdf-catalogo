@@ -22,6 +22,7 @@ function MassPriceAdjustModal({
       alert("Ingresa un valor valido mayor a 0");
       return;
     }
+    
     onApply(selectedOp, value);
     setSelectedOp('');
     setSelectedValue('');

@@ -165,7 +165,6 @@ function App() {
     priceAdjustOp: "", priceAdjustValue: "",
   });
 
-  // Funcion helper para mostrar modales de confirmacion
   const showConfirmModal = (title, message, onConfirm, confirmText = "Confirmar", cancelText = "Cancelar") => {
     setConfirmModal({
       open: true,
@@ -180,7 +179,6 @@ function App() {
     });
   };
 
-  // Funcion helper para mostrar errores
   const showErrorModal = (errors) => {
     setErrorModal({ open: true, errors });
   };
@@ -231,7 +229,6 @@ function App() {
     setSavedDocuments([]);
   }
 
-  // ===== FUNCIONES PARA DOCUMENT TYPE =====
   function handleDocumentTypeChange(type) {
     setDocumentType(type);
     setError("");
@@ -658,30 +655,22 @@ function App() {
   }
 
   function handleApplyMassPriceAdjust(operation, value) {
-  if (batchSelectedIds.length === 0) return;
-  
-  console.log("Aplicando ajuste masivo:", operation, value, "a", batchSelectedIds.length, "productos");
-  
-  setProducts(prevProducts => {
-    const updatedProducts = prevProducts.map(product => {
-      if (batchSelectedIds.includes(product.id)) {
-        console.log("Actualizando producto:", product.name, "precio original:", product.price);
-        return {
-          ...product,
-          priceAdjustOp: operation,
-          priceAdjustValue: String(value),
-          _updatedAt: Date.now()
-        };
-      }
-      return product;
-    });
+    if (batchSelectedIds.length === 0) return;
     
-    console.log("Productos actualizados:", updatedProducts.length);
-    return [...updatedProducts]; 
-  });
-  
-
-}
+    setProducts(prevProducts => {
+      const updatedProducts = prevProducts.map(product => {
+        if (batchSelectedIds.includes(product.id)) {
+          return {
+            ...product,
+            priceAdjustOp: operation,
+            priceAdjustValue: String(value),
+          };
+        }
+        return product;
+      });
+      return [...updatedProducts];
+    });
+  }
 
   function handleCreateManualProduct() {
     const product = normalizeProduct(createEmptyProduct());
@@ -853,9 +842,9 @@ function App() {
 
       let documentTitle = "";
       if (documentType === "quote") {
-        documentTitle = currentQuoteMeta.documentTitle ||
-          currentQuoteMeta.customerName ||
-          "Cotizacion";
+        documentTitle = currentQuoteMeta.documentTitle || 
+                        currentQuoteMeta.customerName || 
+                        "Cotizacion";
       } else {
         documentTitle = currentQuoteMeta.documentTitle || "Catalogo";
       }
@@ -1074,7 +1063,7 @@ function App() {
           onGenerate={() => generatePdf(false)}
           documentType={documentType}
         />
-
+        
         <SearchPanel
           mode={mode}
           setMode={setMode}
@@ -1135,7 +1124,7 @@ function App() {
           ) : (
             visibleProducts.map((product, index) => (
               <DraggableProductCard
-                key={product.id}
+                key={`${product.id}-${product.priceAdjustOp}-${product.priceAdjustValue}`}
                 index={index}
                 product={product}
                 moveProduct={moveProduct}

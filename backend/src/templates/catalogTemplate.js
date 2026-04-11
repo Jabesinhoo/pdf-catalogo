@@ -66,7 +66,20 @@ function formatMoney(value, currency = "COP") {
 }
 
 function getCatalogNumbers(product) {
-  const priceWithIva = parseMoney(product.price);
+  // Calcular precio ajustado
+  let finalPrice = parseMoney(product.price);
+  if (product.priceAdjustOp && product.priceAdjustValue) {
+    const adjustValue = parseFloat(product.priceAdjustValue);
+    if (!isNaN(adjustValue) && adjustValue > 0) {
+      if (product.priceAdjustOp === '/') {
+        finalPrice = finalPrice / adjustValue;
+      } else if (product.priceAdjustOp === '*') {
+        finalPrice = finalPrice * adjustValue;
+      }
+    }
+  }
+
+  const priceWithIva = finalPrice;
   const ivaType = product.ivaType || 'gravado';
   let ivaRate = Number(product.ivaRate ?? 0) || 0;
 
@@ -74,21 +87,24 @@ function getCatalogNumbers(product) {
   const isExento = ivaType === 'exento';
   const isGravado5 = ivaType === 'gravado5';
   const isGravado19 = ivaType === 'gravado' || ivaType === 'gravado19';
+  const isPrecioFinal = ivaType === 'precio_final';
 
   if (isGravado19) ivaRate = 19;
   else if (isGravado5) ivaRate = 5;
   else if (isExento) ivaRate = 0;
   else if (isExcluido) ivaRate = 0;
+  else if (isPrecioFinal) ivaRate = 0;
 
-  const priceWithoutIva = ivaRate > 0 && !isExcluido
+  const priceWithoutIva = (ivaRate > 0 && !isExcluido && !isPrecioFinal)
     ? Math.round(priceWithIva / (1 + ivaRate / 100))
     : priceWithIva;
 
-  const ivaAmount = isExcluido ? 0 : (priceWithIva - priceWithoutIva);
+  const ivaAmount = (isExcluido || isPrecioFinal) ? 0 : (priceWithIva - priceWithoutIva);
 
   return {
     ivaType,
     ivaRate,
+    isPrecioFinal,
     priceWithoutIva,
     priceWithIva,
     ivaAmount,
@@ -106,6 +122,8 @@ function getIvaBadge(product) {
     return '<span class="iva-badge iva-excluido">EXCLUIDO</span>';
   } else if (q.isExento) {
     return '<span class="iva-badge iva-exento">EXENTO 0%</span>';
+  } else if (q.isPrecioFinal) {
+    return '<span class="iva-badge iva-precio-final">PRECIO FINAL</span>';
   } else if (q.isGravado5) {
     return `<span class="iva-badge iva-gravado">GRAVADO 5% (${formatMoney(q.ivaAmount)})</span>`;
   } else {
@@ -119,6 +137,9 @@ function buildRows(products = []) {
       const productUrl = product.productUrl || '#';
       const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
+      
+      // Para PRECIO FINAL no mostrar desglose
+      const showBreakdown = !q.isPrecioFinal;
       
       return `
         <tr class="product-row">
@@ -136,10 +157,12 @@ function buildRows(products = []) {
                 <div class="product-iva">
                   ${ivaBadge}
                 </div>
-                <div class="product-price-breakdown">
-                  <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
-                  <span class="price-with-iva">Con IVA: ${escapeHtml(formatMoney(q.priceWithIva))}</span>
-                </div>
+                ${showBreakdown ? `
+                  <div class="product-price-breakdown">
+                    <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
+                    <span class="price-with-iva">Con IVA: ${escapeHtml(formatMoney(q.priceWithIva))}</span>
+                  </div>
+                ` : ''}
               </div>
 
               <div class="product-image-box">
@@ -168,6 +191,9 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
       month: "2-digit",
       day: "2-digit",
     });
+
+  // TITULO FIJO EN EL PDF - SIEMPRE DICE "CATÁLOGO"
+  const pdfTitle = "CATÁLOGO";
 
   return `
     <!doctype html>
@@ -256,7 +282,6 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             margin-top: 8px;
           }
 
-          /* 👇 GRID DE METADATOS COMO EN COTIZACIÓN */
           .meta-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -364,13 +389,6 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             color: #8aa646;
           }
 
-          .product-link::after {
-            content: ' ';
-            font-size: 0.7em;
-            opacity: 0.4;
-            margin-left: 4px;
-          }
-
           .product-desc {
             font-size: 13px;
             line-height: 1.42;
@@ -427,6 +445,11 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
 
           .iva-exento {
             background: #16a34a;
+            color: white;
+          }
+
+          .iva-precio-final {
+            background: #6b7280;
             color: white;
           }
 
@@ -501,9 +524,8 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             </div>
           </div>
 
-          <div class="doc-title">CATÁLOGO</div>
+          <div class="doc-title">${escapeHtml(pdfTitle)}</div>
 
-          <!-- 👇 GRID DE METADATOS COMO EN COTIZACIÓN -->
           <div class="meta-grid">
             <div class="meta-item">
               <strong>FECHA</strong>
@@ -527,14 +549,14 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             <thead>
               <tr>
                 <th class="th-item">#</th>
-                <th class="th-description">DESCRIPCIÓN</th>
+                <th class="th-description">DESCRIPCION</th>
                 <th class="th-price">VR. UNIT</th>
               </tr>
             </thead>
             <tbody>
               ${buildRows(products)}
             </tbody>
-           </table>
+          </table>
 
           <div class="bottom-bars">
             <div class="bottom-gray"></div>
