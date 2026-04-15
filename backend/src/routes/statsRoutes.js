@@ -6,16 +6,17 @@ const {
   getAdminSummary,
   getAdminStats,
   getGlobalTotals,
-  getAdminUsers
+  getAdminUsers,
+  deleteAllDocumentsKeepingStats
 } = require('../controllers/statsController');
 
-// Cualquier usuario autenticado puede ver sus estadísticas
 router.get('/my', requireAuth, getUserStats);
 
-// Solo admin puede ver estadísticas globales
 router.get('/admin/summary', requireAuth, requireAdmin, getAdminSummary);
 router.get('/admin/stats', requireAuth, requireAdmin, getAdminStats);
 router.get('/admin/totals', requireAuth, requireAdmin, getGlobalTotals);
 router.get('/admin/users', requireAuth, requireAdmin, getAdminUsers);
+
+router.delete('/admin/delete-all', requireAuth, requireAdmin, deleteAllDocumentsKeepingStats);
 
 module.exports = router;
