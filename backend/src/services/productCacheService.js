@@ -63,35 +63,7 @@ function sanitizeProductForCache(product) {
 
 // Guardar productos en caché
 async function cacheProducts(products) {
-  if (!products || products.length === 0) return;
-  
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    for (const product of products) {
-      const sanitized = sanitizeProductForCache(product);
-      const productData = JSON.stringify(sanitized);
-      
-      await client.query(`
-        INSERT INTO product_cache (sku, product_data, price_numeric, product_name, updated_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (sku) DO UPDATE SET 
-          product_data = EXCLUDED.product_data,
-          price_numeric = EXCLUDED.price_numeric,
-          product_name = EXCLUDED.product_name,
-          updated_at = NOW()
-      `, [sanitized.sku, productData, sanitized.price_numeric, sanitized.name]);
-    }
-    
-    await client.query('COMMIT');
-    console.log(`✅ ${products.length} productos guardados en caché`);
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error cacheando productos:', error);
-  } finally {
-    client.release();
-  }
+  return;
 }
 
 // Obtener producto cacheado
