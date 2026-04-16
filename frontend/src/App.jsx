@@ -185,24 +185,45 @@ function App() {
 
   // ===== VERIFICAR SESION AL INICIAR =====
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const response = await fetch('/api/auth/me', {
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (data.success) {
-          setAuthUser(data.user);
-          localStorage.setItem('tecnocotizador_user', data.user.username);
-        }
-      } catch (error) {
-        console.error('Error verificando autenticacion:', error);
-      } finally {
-        setAuthLoading(false);
+  async function checkAuth() {
+    try {
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        setAuthUser(null);
+        return;
       }
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        console.error('La respuesta de /api/auth/me no es JSON');
+        setAuthUser(null);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setAuthUser(data.user);
+        localStorage.setItem('tecnocotizador_user', data.user.username);
+      } else {
+        setAuthUser(null);
+      }
+    } catch (error) {
+      console.error('Error verificando autenticacion:', error);
+      setAuthUser(null);
+    } finally {
+      setAuthLoading(false);
     }
-    checkAuth();
-  }, []);
+  }
+
+  checkAuth();
+}, []);
 
   useSessionKeepAlive(authUser ? 5 * 60 * 1000 : null);
 
