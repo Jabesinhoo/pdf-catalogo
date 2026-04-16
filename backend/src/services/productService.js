@@ -1,329 +1,329 @@
-const SITE_ORIGIN = process.env.SITE_ORIGIN || "https://tecnonacho.com";
+const fs = require("fs");
+const path = require("path");
+const puppeteer = require("puppeteer-core");
+const { buildCatalogHtml } = require("../templates/catalogTemplate");
+const { buildQuoteHtml } = require("../templates/quoteTemplate");
 
-const CACHE_TTL_MS = 60 * 1000;
-const memoryCache = new Map();
-const { getCachedProduct, cacheProducts, searchCachedProducts } = require('./productCacheService');
+const BROWSER_LAUNCH_TIMEOUT = 180000;
+const PAGE_TIMEOUT = 180000;
+const PROTOCOL_TIMEOUT = 180000;
+const IMAGE_WAIT_TIMEOUT = 15000;
+const RENDER_STABILIZE_MS = 500;
 
-const https = require('https');
-const http = require('http');
+const MAX_PDF_CONCURRENCY = Number(process.env.PDF_MAX_CONCURRENCY || 1);
+const MAX_PDF_QUEUE = Number(process.env.PDF_MAX_QUEUE || 10);
 
-// Crear agent con timeout y keepAlive
-const agent = new https.Agent({
-  keepAlive: true,
-  timeout: 10000,
-});
+let browserPromise = null;
+let activeJobs = 0;
+const waitQueue = [];
 
-function cleanText(text = "") {
-  return String(text).replace(/\s+/g, " ").trim();
-}
+function getBrowserPath() {
+  const envPath = process.env.BROWSER_PATH;
 
-function stripHtml(html = "") {
-  return cleanText(String(html).replace(/<[^>]*>/g, " "));
-}
+  const possiblePaths = [
+    envPath,
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/snap/bin/chromium",
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  ].filter(Boolean);
 
-function formatPrice(prices = {}) {
-  const raw = prices.price ?? "";
-  const minorUnit = Number(prices.currency_minor_unit ?? 0);
-
-  if (raw === "") return "No disponible";
-
-  const amount = Number(raw) / Math.pow(10, minorUnit);
-
-  const formatted = new Intl.NumberFormat("es-CO", {
-    minimumFractionDigits: minorUnit,
-    maximumFractionDigits: minorUnit,
-  }).format(amount);
-
-  return `${prices.currency_prefix || prices.currency_symbol || ""}${formatted}${prices.currency_suffix || ""}`.trim();
-}
-
-function normalizeCategoryValues(categories = []) {
-  if (!Array.isArray(categories)) return [];
-  return categories.map((item) => String(item || "").trim()).filter(Boolean);
-}
-
-function normalizeStockStatuses(stockStatuses = []) {
-  const allowed = new Set(["instock", "outofstock", "onbackorder"]);
-  if (!Array.isArray(stockStatuses)) return [];
-  return stockStatuses
-    .map((item) => String(item || "").trim().toLowerCase())
-    .filter((item) => allowed.has(item));
-}
-
-function getCategorySlugFromUrl(inputUrl) {
-  const url = new URL(inputUrl);
-  const parts = url.pathname.split("/").filter(Boolean);
-  const categoryIndex = parts.indexOf("categoria-producto");
-
-  if (categoryIndex === -1) {
-    throw new Error("Debes enviar una URL de categoría de Tecnonacho.");
-  }
-
-  const slug = parts[parts.length - 1];
-  if (!slug || slug === "categoria-producto") {
-    throw new Error("No pude obtener el slug de la categoría desde la URL.");
-  }
-
-  return slug;
-}
-
-function normalizeSearchTerm(term) {
-  if (!term) return "";
-  
-  return String(term)
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, "")
-    .trim();
-}
-
-function buildProductsEndpoint({ mode, value, page, categories = [], stockStatuses = [] }) {
-  const baseUrl = new URL("/wp-json/wc/store/v1/products", SITE_ORIGIN);
-  const params = baseUrl.searchParams;
-
-  params.set("page", String(page));
-  params.set("per_page", "100");
-
-  const normalizedCategories = normalizeCategoryValues(categories);
-  const normalizedStockStatuses = normalizeStockStatuses(stockStatuses);
-
-  if (normalizedCategories.length > 0) {
-    params.set("category", normalizedCategories.join(","));
-  } else if (mode === "url" && value) {
-    params.set("category", getCategorySlugFromUrl(value));
-  }
-
-  if (mode === "name" && value) {
-    const normalizedValue = normalizeSearchTerm(value);
-    params.set("search", normalizedValue);
-  }
-
-  if (mode === "sku" && value) {
-    params.set("sku", value);
-  }
-
-  normalizedStockStatuses.forEach((status, index) => {
-    params.append(`stock_status[${index}]`, status);
+  const found = possiblePaths.find((browserPath) => {
+    try {
+      return fs.existsSync(browserPath);
+    } catch {
+      return false;
+    }
   });
 
-  return baseUrl.toString();
-}
-
-async function fetchJson(url, retries = 2) {
-  const cached = memoryCache.get(url);
-  if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
-    return cached.data;
+  if (!found) {
+    throw new Error(
+      "No encontré un navegador compatible. Define BROWSER_PATH en backend/.env."
+    );
   }
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  return found;
+}
+
+function getLogoDataUri() {
+  const logoPath = path.resolve(
+    process.cwd(),
+    "..",
+    "frontend",
+    "src",
+    "assets",
+    "logo.png"
+  );
+
+  if (!fs.existsSync(logoPath)) {
+    console.warn("⚠️ Logo no encontrado en:", logoPath);
+    return "";
+  }
+
+  const fileBuffer = fs.readFileSync(logoPath);
+  return `data:image/png;base64,${fileBuffer.toString("base64")}`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForImages(page, timeout = IMAGE_WAIT_TIMEOUT) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const images = Array.from(document.images || []);
+        if (images.length === 0) return true;
+        return images.every((img) => img.complete);
+      },
+      { timeout }
+    );
+
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      error: `Timeout esperando imágenes (${timeout} ms)`,
+    };
+  }
+}
+
+function acquirePdfSlot() {
+  return new Promise((resolve, reject) => {
+    if (waitQueue.length >= MAX_PDF_QUEUE) {
+      return reject(
+        new Error("PDF_QUEUE_FULL: servicio de PDF ocupado, intenta de nuevo")
+      );
+    }
+
+    const tryAcquire = () => {
+      if (activeJobs < MAX_PDF_CONCURRENCY) {
+        activeJobs += 1;
+        resolve();
+      } else {
+        waitQueue.push(tryAcquire);
+      }
+    };
+
+    tryAcquire();
+  });
+}
+
+function releasePdfSlot() {
+  activeJobs = Math.max(0, activeJobs - 1);
+  const next = waitQueue.shift();
+  if (next) next();
+}
+
+async function getBrowser() {
+  if (browserPromise) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      const rawText = await response.text();
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch {
-        throw new Error("Invalid JSON");
-      }
-
-      memoryCache.set(url, { data, createdAt: Date.now() });
-      return data;
-    } catch (error) {
-      console.warn(`⚠️ Intento ${attempt}/${retries} falló:`, error.message);
-      if (attempt === retries) {
-        throw new Error(`fetch failed: ${error.message}`);
-      }
-      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+      const existing = await browserPromise;
+      if (existing && existing.connected) return existing;
+    } catch {
+      browserPromise = null;
     }
   }
+
+  const executablePath = getBrowserPath();
+  console.log("🚀 Lanzando navegador con:", executablePath);
+
+  browserPromise = puppeteer.launch({
+    headless: true,
+    executablePath,
+    timeout: BROWSER_LAUNCH_TIMEOUT,
+    protocolTimeout: PROTOCOL_TIMEOUT,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--disable-translate",
+      "--metrics-recording-only",
+      "--mute-audio",
+      "--no-first-run",
+      "--disable-default-apps",
+      "--font-render-hinting=medium",
+    ],
+  });
+
+  const browser = await browserPromise;
+
+  browser.on("disconnected", () => {
+    console.warn("⚠️ Browser desconectado. Se recreará en la próxima petición.");
+    browserPromise = null;
+  });
+
+  return browser;
 }
 
-// 👇 FUNCIÓN MODIFICADA CON STOCK
-function normalizeProduct(item) {
-  // Determinar el stock usando los campos correctos
-  let stockDisplay = 'Sin stock';
-  let stockStatus = 'outofstock';
-  let stockQuantity = null;
-  
-  // Usar is_in_stock (true/false)
-  if (item.is_in_stock === true) {
-    stockStatus = 'instock';
-    // Usar low_stock_remaining si existe
-    if (item.low_stock_remaining !== undefined && item.low_stock_remaining !== null) {
-      stockQuantity = item.low_stock_remaining;
-      stockDisplay = `${item.low_stock_remaining} unidades`;
-    } else {
-      stockDisplay = 'En stock';
-    }
-  } else if (item.is_on_backorder === true) {
-    stockStatus = 'onbackorder';
-    stockDisplay = 'Sobre pedido';
-  } else {
-    stockStatus = 'outofstock';
-    stockDisplay = 'Sin stock';
-  }
-  
-  // También podemos usar stock_availability.text si existe
-  if (item.stock_availability?.text) {
-    stockDisplay = item.stock_availability.text;
-  }
-
-  console.log(`📦 Producto: ${item.name} | Stock: ${stockDisplay}`);
-
-  return {
-    id: String(item.id),
-    name: item.name || "Sin nombre",
-    sku: item.sku || "N/D",
-    shortDescription: stripHtml(item.short_description || item.summary || ""),
-    price: formatPrice(item.prices),
-    image: item.images?.[0]?.src || item.images?.[0]?.thumbnail || "",
-    productUrl: item.permalink || "",
-    quantity: 1,
-    ivaRate: 0,
-    totalPrice: "",
-    selected: true,
-    stockStatus: stockStatus,
-    stockQuantity: stockQuantity,
-    stockDisplay: stockDisplay,
-  };
-}
-
-function normalizeCategory(item) {
-  return {
-    id: String(item.id),
-    name: item.name || "Sin nombre",
-    slug: item.slug || "",
-    parent: item.parent ? String(item.parent) : "",
-    count: Number(item.count || 0),
-    permalink: item.permalink || "",
-    image: item.image?.thumbnail || item.image?.src || "",
-  };
-}
-
-async function fetchProducts({ mode, value, categories = [], stockStatuses = [] }) {
-  const all = [];
-  const seen = new Set();
-  let retries = 2;
-
-  const attemptFetch = async () => {
-    for (let page = 1; page <= 200; page += 1) {
-      const endpoint = buildProductsEndpoint({
-        mode,
-        value,
-        page,
-        categories,
-        stockStatuses,
-      });
-
-      try {
-        const batch = await fetchJson(endpoint);
-
-        if (!Array.isArray(batch) || batch.length === 0) break;
-
-        for (const item of batch) {
-          if (seen.has(item.id)) continue;
-          seen.add(item.id);
-          all.push(normalizeProduct(item));
-        }
-
-        if (batch.length < 100) break;
-      } catch (error) {
-        console.error(`❌ Error en página ${page}:`, error.message);
-        throw error;
-      }
-    }
-    return all;
-  };
+async function resetBrowser() {
+  if (!browserPromise) return;
 
   try {
-    const result = await attemptFetch();
-    
-    // Guardar en caché local para uso offline
-    if (result.length > 0) {
-      await cacheProducts(result);
+    const browser = await browserPromise;
+    browserPromise = null;
+    if (browser && browser.connected) {
+      await browser.close().catch(() => {});
     }
-    
-    return result;
-  } catch (error) {
-    console.warn('⚠️ API externa falló, usando caché local:', error.message);
-    
-    // Usar caché local
-    if (mode === 'sku' && value) {
-      const cached = await getCachedProduct(value);
-      return cached ? [cached] : [];
-    }
-    
-    if (mode === 'name' && value) {
-      return await searchCachedProducts(value);
-    }
-    
-    if (mode === 'url' && value) {
-      // Para URL, intentar buscar por nombre de categoría
-      const categoryName = value.split('/').pop().replace(/-/g, ' ');
-      return await searchCachedProducts(categoryName);
-    }
-    
-    return [];
+  } catch {
+    browserPromise = null;
   }
 }
 
-async function fetchCategories() {
-  const all = [];
-  const seen = new Set();
-  const perPage = 100;
-
-  for (let page = 1; page <= 50; page += 1) {
-    const url = new URL("/wp-json/wc/store/v1/products/categories", SITE_ORIGIN);
-    url.searchParams.set("per_page", String(perPage));
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("hide_empty", "false");
-
-    const batch = await fetchJson(url.toString());
-
-    if (!Array.isArray(batch) || batch.length === 0) {
-      break;
-    }
-
-    for (const item of batch) {
-      const normalized = normalizeCategory(item);
-
-      if (!normalized.id || seen.has(normalized.id)) continue;
-
-      seen.add(normalized.id);
-      all.push(normalized);
-    }
-
-    if (batch.length < perPage) {
-      break;
-    }
+async function safeClosePage(page) {
+  if (!page) return;
+  try {
+    await Promise.race([
+      page.close({ runBeforeUnload: false }),
+      sleep(3000),
+    ]);
+  } catch (error) {
+    console.warn("⚠️ Error cerrando page:", error.message);
   }
+}
 
-  return all.sort((a, b) =>
-    String(a.name || "").localeCompare(String(b.name || ""), "es", {
-      sensitivity: "base",
-    })
+function shouldResetBrowser(error) {
+  const msg = String(error?.message || error || "");
+  return (
+    msg.includes("Target closed") ||
+    msg.includes("ProtocolError") ||
+    msg.includes("Session closed") ||
+    msg.includes("Connection closed")
   );
 }
 
-module.exports = {
-  fetchProducts,
-  fetchCategories,
-};
+async function buildCatalogPdf({
+  products = [],
+  orientation = "portrait",
+  sourceUrl = "",
+  documentType = "catalog",
+  quoteMeta = {},
+}) {
+  let page = null;
+
+  await acquirePdfSlot();
+  console.log(`📊 PDFs activos: ${activeJobs}/${MAX_PDF_CONCURRENCY}`);
+
+  try {
+    const browser = await getBrowser();
+    const logoSrc = getLogoDataUri();
+
+    console.log("📄 Tipo documento:", documentType);
+    console.log("📦 Productos:", products.length);
+
+    page = await browser.newPage();
+
+    page.setDefaultNavigationTimeout(PAGE_TIMEOUT);
+    page.setDefaultTimeout(PAGE_TIMEOUT);
+
+    await page.setViewport({ width: 1400, height: 2000 });
+    await page.setUserAgent(
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    );
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
+    });
+    await page.emulateMediaType("screen");
+
+    page.on("console", (msg) => {
+      console.log("🖥️ PAGE LOG:", msg.type(), msg.text());
+    });
+
+    page.on("pageerror", (err) => {
+      console.error("❌ PAGE ERROR:", err);
+    });
+
+    page.on("requestfailed", (request) => {
+      console.error(
+        "❌ REQUEST FAILED:",
+        request.url(),
+        request.failure()?.errorText || "Sin detalle"
+      );
+    });
+
+    const html =
+      documentType === "quote"
+        ? buildQuoteHtml({ products, quoteMeta, logoSrc })
+        : buildCatalogHtml({
+            products,
+            orientation,
+            quoteMeta,
+            sourceUrl,
+            logoSrc,
+          });
+
+    if (!html || typeof html !== "string" || !html.trim()) {
+      throw new Error("El HTML generado para el PDF es inválido o está vacío.");
+    }
+
+    console.log("🧱 HTML generado. Longitud:", html.length);
+
+    await page.setContent(html, {
+      waitUntil: "domcontentloaded",
+      timeout: PAGE_TIMEOUT,
+    });
+
+    const imageWaitResult = await waitForImages(page, IMAGE_WAIT_TIMEOUT);
+    if (!imageWaitResult.ok) {
+      console.warn("⚠️", imageWaitResult.error);
+      console.warn("⚠️ Algunas imágenes no cargaron a tiempo, continúo con el PDF");
+    } else {
+      console.log("🖼️ Imágenes terminadas");
+    }
+
+    await sleep(RENDER_STABILIZE_MS);
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      landscape: documentType === "catalog" && orientation === "landscape",
+      printBackground: true,
+      displayHeaderFooter: true,
+      preferCSSPageSize: true,
+      scale: 0.95,
+      headerTemplate: `<div></div>`,
+      footerTemplate: `
+        <div style="width:100%; font-size:10px; padding:0 18px; color:#666; text-align:right;">
+          <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>
+      `,
+      margin: {
+        top: "12mm",
+        right: "10mm",
+        bottom: "16mm",
+        left: "10mm",
+      },
+      timeout: PAGE_TIMEOUT,
+    });
+
+    if (!pdfBuffer || !pdfBuffer.length) {
+      throw new Error("No se pudo generar el buffer del PDF.");
+    }
+
+    console.log("✅ PDF generado correctamente. Bytes:", pdfBuffer.length);
+    return pdfBuffer;
+  } catch (error) {
+    console.error("❌ ERROR en buildCatalogPdf:", error);
+
+    if (shouldResetBrowser(error)) {
+      console.warn("⚠️ Reiniciando browser por error de Puppeteer...");
+      await resetBrowser();
+    }
+
+    throw error;
+  } finally {
+    await safeClosePage(page);
+    releasePdfSlot();
+    console.log(`📊 PDFs activos después: ${activeJobs}/${MAX_PDF_CONCURRENCY}`);
+  }
+}
+
+module.exports = { buildCatalogPdf };
