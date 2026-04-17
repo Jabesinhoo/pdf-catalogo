@@ -2,7 +2,7 @@ const { buildCatalogPdf } = require("../services/pdfService");
 const { fetchRealProductPrice } = require("../services/realPriceService");
 
 let activePdfJobs = 0;
-const MAX_PDF_JOBS = 2;
+const MAX_PDF_JOBS = 7;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
