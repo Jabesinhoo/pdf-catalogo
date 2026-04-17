@@ -4,10 +4,18 @@ const puppeteer = require("puppeteer-core");
 const { buildCatalogHtml } = require("../templates/catalogTemplate");
 const { buildQuoteHtml } = require("../templates/quoteTemplate");
 
-const BROWSER_LAUNCH_TIMEOUT = 120000;
-const PAGE_TIMEOUT = 120000;
-const IMAGE_WAIT_TIMEOUT = 10000;
-const RENDER_STABILIZE_MS = 800;
+const BROWSER_LAUNCH_TIMEOUT = 180000;
+const PAGE_TIMEOUT = 180000;
+const PROTOCOL_TIMEOUT = 180000;
+const IMAGE_WAIT_TIMEOUT = 15000;
+const RENDER_STABILIZE_MS = 500;
+
+const MAX_PDF_CONCURRENCY = Number(process.env.PDF_MAX_CONCURRENCY || 1);
+const MAX_PDF_QUEUE = Number(process.env.PDF_MAX_QUEUE || 10);
+
+let browserPromise = null;
+let activeJobs = 0;
+const waitQueue = [];
 
 function getBrowserPath() {
   const envPath = process.env.BROWSER_PATH;
@@ -15,14 +23,12 @@ function getBrowserPath() {
   const possiblePaths = [
     envPath,
 
-    // Linux
     "/usr/bin/chromium-browser",
     "/usr/bin/chromium",
     "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
     "/snap/bin/chromium",
 
-    // Windows
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -75,22 +81,126 @@ async function waitForImages(page, timeout = IMAGE_WAIT_TIMEOUT) {
       () => {
         const images = Array.from(document.images || []);
         if (images.length === 0) return true;
-
-        // Solo esperamos a que terminen.
-        // No exigimos naturalWidth > 0 porque si una imagen falla,
-        // eso deja el proceso colgado hasta timeout.
         return images.every((img) => img.complete);
       },
       { timeout }
     );
 
     return { ok: true };
-  } catch (error) {
+  } catch {
     return {
       ok: false,
       error: `Timeout esperando imágenes (${timeout} ms)`,
     };
   }
+}
+
+function acquirePdfSlot() {
+  return new Promise((resolve, reject) => {
+    if (waitQueue.length >= MAX_PDF_QUEUE) {
+      return reject(
+        new Error("PDF_QUEUE_FULL: servicio de PDF ocupado, intenta de nuevo")
+      );
+    }
+
+    const tryAcquire = () => {
+      if (activeJobs < MAX_PDF_CONCURRENCY) {
+        activeJobs += 1;
+        resolve();
+      } else {
+        waitQueue.push(tryAcquire);
+      }
+    };
+
+    tryAcquire();
+  });
+}
+
+function releasePdfSlot() {
+  activeJobs = Math.max(0, activeJobs - 1);
+  const next = waitQueue.shift();
+  if (next) next();
+}
+
+async function getBrowser() {
+  if (browserPromise) {
+    try {
+      const existing = await browserPromise;
+      if (existing && existing.connected) return existing;
+    } catch {
+      browserPromise = null;
+    }
+  }
+
+  const executablePath = getBrowserPath();
+  console.log("🚀 Lanzando navegador con:", executablePath);
+
+  browserPromise = puppeteer.launch({
+    headless: true,
+    executablePath,
+    timeout: BROWSER_LAUNCH_TIMEOUT,
+    protocolTimeout: PROTOCOL_TIMEOUT,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-sync",
+      "--disable-translate",
+      "--metrics-recording-only",
+      "--mute-audio",
+      "--no-first-run",
+      "--disable-default-apps",
+      "--font-render-hinting=medium",
+    ],
+  });
+
+  const browser = await browserPromise;
+
+  browser.on("disconnected", () => {
+    console.warn("⚠️ Browser desconectado. Se recreará en la próxima petición.");
+    browserPromise = null;
+  });
+
+  return browser;
+}
+
+async function resetBrowser() {
+  if (!browserPromise) return;
+
+  try {
+    const browser = await browserPromise;
+    browserPromise = null;
+    if (browser && browser.connected) {
+      await browser.close().catch(() => {});
+    }
+  } catch {
+    browserPromise = null;
+  }
+}
+
+async function safeClosePage(page) {
+  if (!page) return;
+  try {
+    await Promise.race([
+      page.close({ runBeforeUnload: false }),
+      sleep(3000),
+    ]);
+  } catch (error) {
+    console.warn("⚠️ Error cerrando page:", error.message);
+  }
+}
+
+function shouldResetBrowser(error) {
+  const msg = String(error?.message || error || "");
+  return (
+    msg.includes("Target closed") ||
+    msg.includes("ProtocolError") ||
+    msg.includes("Session closed") ||
+    msg.includes("Connection closed")
+  );
 }
 
 async function buildCatalogPdf({
@@ -100,45 +210,24 @@ async function buildCatalogPdf({
   documentType = "catalog",
   quoteMeta = {},
 }) {
-  let browser = null;
   let page = null;
 
+  await acquirePdfSlot();
+  console.log(`📊 PDFs activos: ${activeJobs}/${MAX_PDF_CONCURRENCY}`);
+
   try {
-    const executablePath = getBrowserPath();
+    const browser = await getBrowser();
     const logoSrc = getLogoDataUri();
 
-    console.log("🚀 Lanzando navegador con:", executablePath);
     console.log("📄 Tipo documento:", documentType);
     console.log("📦 Productos:", products.length);
 
-    browser = await puppeteer.launch({
-      headless: true,
-      executablePath,
-      timeout: BROWSER_LAUNCH_TIMEOUT,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-zygote",
-        "--single-process",
-        "--disable-extensions",
-        "--disable-background-networking",
-        "--disable-sync",
-        "--disable-translate",
-        "--metrics-recording-only",
-        "--mute-audio",
-        "--no-first-run",
-        "--disable-default-apps",
-      ],
-    });
-
     page = await browser.newPage();
 
-    await page.setViewport({ width: 1400, height: 2000 });
     page.setDefaultNavigationTimeout(PAGE_TIMEOUT);
     page.setDefaultTimeout(PAGE_TIMEOUT);
 
+    await page.setViewport({ width: 1400, height: 2000 });
     await page.setUserAgent(
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     );
@@ -146,6 +235,8 @@ async function buildCatalogPdf({
     await page.setExtraHTTPHeaders({
       "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
     });
+
+    await page.emulateMediaType("screen");
 
     page.on("console", (msg) => {
       console.log("🖥️ PAGE LOG:", msg.type(), msg.text());
@@ -226,27 +317,20 @@ async function buildCatalogPdf({
     }
 
     console.log("✅ PDF generado correctamente. Bytes:", pdfBuffer.length);
-
     return pdfBuffer;
   } catch (error) {
     console.error("❌ ERROR en buildCatalogPdf:", error);
-    throw error;
-  } finally {
-    if (page) {
-      try {
-        await page.close();
-      } catch (error) {
-        console.error("⚠️ Error cerrando page:", error.message);
-      }
+
+    if (shouldResetBrowser(error)) {
+      console.warn("⚠️ Reiniciando browser por error de Puppeteer...");
+      await resetBrowser();
     }
 
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (error) {
-        console.error("⚠️ Error cerrando browser:", error.message);
-      }
-    }
+    throw error;
+  } finally {
+    await safeClosePage(page);
+    releasePdfSlot();
+    console.log(`📊 PDFs activos después: ${activeJobs}/${MAX_PDF_CONCURRENCY}`);
   }
 }
 
