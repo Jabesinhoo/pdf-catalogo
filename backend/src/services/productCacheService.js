@@ -62,49 +62,25 @@ function sanitizeProductForCache(product) {
 }
 
 // Guardar productos en caché
-async function cacheProducts(products) {
+async function cacheProducts() {
   return;
 }
 
-// Obtener producto cacheado
-async function getCachedProduct(sku) {
-  if (!sku) return null;
-  
-  const result = await pool.query(`
-    SELECT product_data FROM product_cache 
-    WHERE sku = $1 AND updated_at > NOW() - INTERVAL '30 days'
-  `, [sku]);
-  
-  return result.rows.length > 0 ? result.rows[0].product_data : null;
+async function getCachedProduct() {
+  return null;
 }
 
-// Buscar productos
-async function searchCachedProducts(searchTerm) {
-  if (!searchTerm) return [];
-  
-  const result = await pool.query(`
-    SELECT product_data FROM product_cache 
-    WHERE product_name ILIKE $1 OR sku ILIKE $1
-    ORDER BY updated_at DESC
-    LIMIT 100
-  `, [`%${searchTerm}%`]);
-  
-  return result.rows.map(row => row.product_data);
+async function searchCachedProducts() {
+  return [];
 }
 
-// Obtener todos
 async function getAllCachedProducts() {
-  const result = await pool.query(`
-    SELECT product_data FROM product_cache 
-    ORDER BY updated_at DESC
-  `);
-  
-  return result.rows.map(row => row.product_data);
+  return [];
 }
 
-module.exports = { 
-  cacheProducts, 
-  getCachedProduct, 
+module.exports = {
+  cacheProducts,
+  getCachedProduct,
   searchCachedProducts,
-  getAllCachedProducts
+  getAllCachedProducts,
 };

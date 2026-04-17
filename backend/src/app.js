@@ -17,7 +17,6 @@ const pdfRoutes = require("./routes/pdfRoutes");
 const documentRoutes = require("./routes/documentRoutes");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-const cacheRoutes = require("./routes/cacheRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 
 const { requireAuth } = require("./controllers/authController");
@@ -74,7 +73,7 @@ app.use("/api/pdf", requireAuth, pdfRoutes);
 app.use("/api/documents", requireAuth, documentRoutes);
 app.use("/api/admin", adminRoutes);
 
-app.use("/api/cache", cacheRoutes);
+
 app.use("/api/stats", statsRoutes);
 app.use("/flipbooks", express.static(path.join(__dirname, "public/flipbooks")));
 
