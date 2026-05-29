@@ -159,22 +159,10 @@ function buildRows(products, currency, orientation) {
       ivaTotal += q.ivaAmount;
     }
 
-    let ivaDisplay = '';
-    if (q.isExcluido) {
-      ivaDisplay = '<span class="iva-excluido">Excluido</span>';
-    } else if (q.isExento) {
-      ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
-    } else if (q.isPrecioFinal) {
-      ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
-    } else if (q.isGravado5) {
-      ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
-    } else {
-      ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
-    }
-
-    const unitPriceDisplay = q.isPrecioFinal 
-      ? formatMoney(q.priceWithIva, currency)
-      : formatMoney(q.priceWithoutIva, currency);
+    // En la fila del producto se muestra el precio normal.
+    // La discriminación de IVA queda únicamente en la tabla de totales.
+    const unitPriceDisplay = formatMoney(q.priceWithIva, currency);
+    const totalDisplay = formatMoney(q.priceWithIva * q.quantity, currency);
 
     return `
       <tr class="product-row">
@@ -191,19 +179,16 @@ function buildRows(products, currency, orientation) {
               <div class="product-meta">
                 SKU: ${escapeHtml(product.sku || "N/D")}
               </div>
-              <div class="product-iva">
-                ${ivaDisplay}
-              </div>
             </div>
             ${product.image ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
-                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
+                <img src="${escapeHtml(fixImageUrl(product.image))}" alt="${escapeHtml(product.name || "Producto")}" />
               </div>
             ` : ''}
           </div>
         </td>
         <td class="col-unit">${escapeHtml(unitPriceDisplay)}</td>
-        <td class="col-total">${escapeHtml(formatMoney(q.total, currency))}</td>
+        <td class="col-total">${escapeHtml(totalDisplay)}</td>
       </tr>
     `;
   }).join('');
@@ -219,6 +204,7 @@ function buildRows(products, currency, orientation) {
     subtotalExcluido,
     subtotalPrecioFinal,
     ivaTotal,
+    subtotalGeneral,
     totalGeneral,
     valorAPagar
   };
@@ -251,7 +237,8 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     subtotalExento, 
     subtotalExcluido, 
     subtotalPrecioFinal,
-    ivaTotal, 
+    ivaTotal,
+    subtotalGeneral,
     totalGeneral,
     valorAPagar 
   } = buildRows(products, currency, orientation);
@@ -798,11 +785,15 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <table class="totals-table">
                 <tr>
                   <td>SUBTOTAL:</td>
-                  <td class="total-value">${escapeHtml(formatMoney(totalGeneral, currency))}</td>
+                  <td class="total-value">${escapeHtml(formatMoney(subtotalGeneral, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. GRAVADO:</td>
                   <td class="total-value">${escapeHtml(formatMoney(subtotalGravado, currency))}</td>
+                </tr>
+                <tr>
+                  <td>VR. EXENTO:</td>
+                  <td class="total-value">${escapeHtml(formatMoney(subtotalExento, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. EXCLUIDO:</td>
