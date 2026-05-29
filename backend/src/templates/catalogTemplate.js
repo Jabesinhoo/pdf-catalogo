@@ -135,12 +135,9 @@ function buildRows(products = []) {
   return products
     .map((product, index) => {
       const productUrl = product.productUrl || '#';
-      const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
-      
-      // Para PRECIO FINAL no mostrar desglose
-      const showBreakdown = !q.isPrecioFinal;
-      
+      const unitPriceDisplay = formatMoney(q.priceWithIva);
+
       return `
         <tr class="product-row">
           <td class="col-item">${index + 1}<\/td>
@@ -154,15 +151,6 @@ function buildRows(products = []) {
                 <div class="product-meta">
                   SKU: ${escapeHtml(product.sku || "N/D")}
                 </div>
-                <div class="product-iva">
-                  ${ivaBadge}
-                </div>
-                ${showBreakdown ? `
-                  <div class="product-price-breakdown">
-                    <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
-                    <span class="price-with-iva">Con IVA: ${escapeHtml(formatMoney(q.priceWithIva))}</span>
-                  </div>
-                ` : ''}
               </div>
 
               <div class="product-image-box">
@@ -174,7 +162,7 @@ function buildRows(products = []) {
               </div>
             </div>
           <\/td>
-          <td class="col-price">${escapeHtml(formatMoney(q.priceWithIva))}<\/td>
+          <td class="col-price">${escapeHtml(unitPriceDisplay)}<\/td>
         <\/tr>
       `;
     })
