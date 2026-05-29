@@ -453,20 +453,26 @@ function App() {
   const allSelected = products.length > 0 && products.every((p) => p.selected);
 
   const visibleProducts = useMemo(() => {
-    const term = localFilter.trim().toLowerCase();
-    let filtered = products;
+  const safeProducts = Array.isArray(products) ? products : [];
+  const term = String(localFilter || "").trim().toLowerCase();
 
-    if (term) {
-      filtered = products.filter((product) =>
+  let filtered = safeProducts;
+
+  if (term) {
+    filtered = safeProducts.filter((product) => {
+      if (!product) return false;
+
+      return (
         String(product.name || "").toLowerCase().includes(term) ||
         String(product.sku || "").toLowerCase().includes(term) ||
         String(product.shortDescription || "").toLowerCase().includes(term) ||
         String(product.price || "").toLowerCase().includes(term)
       );
-    }
+    });
+  }
 
-    return getSortedProducts(filtered);
-  }, [products, localFilter, sortBy, sortOrder]);
+  return getSortedProducts(filtered);
+}, [products, localFilter, sortBy, sortOrder]);
 
   const moveProduct = (dragIndex, hoverIndex) => {
     if (sortBy !== "manual") return;
