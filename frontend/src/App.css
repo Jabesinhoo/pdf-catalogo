@@ -203,7 +203,32 @@ body {
 .docSidebarCopy { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
 .docSidebarCopy strong { font-size: 0.95rem; color: var(--text); }
 .docSidebarCopy span { font-size: 0.8rem; color: var(--muted); }
+.toolbar-search {
+  position: relative;
+}
 
+.toolbar-search input[type="search"] {
+  padding-right: 2rem;
+}
+
+.toolbar-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.toolbar-search-clear:hover {
+  opacity: 1;
+}
 .docSidebarTheme { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .themeSidebarBtn {
   width: 100%;
