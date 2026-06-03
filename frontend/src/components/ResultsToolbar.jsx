@@ -7,7 +7,8 @@ import {
   CheckSquare, 
   Square,
   Search,
-  Calculator
+  Calculator,
+  X
 } from "lucide-react";
 import SortControls from "./SortControls";
 
@@ -17,7 +18,7 @@ function ResultsToolbar({
   selectedCount = 0,
   allSelected = false,
   localFilter = "",
-  setLocalFilter,
+  setLocalFilter = () => {},
   onSelectAll,
   onDeselectAll,
   onAddManual,
@@ -35,6 +36,16 @@ function ResultsToolbar({
   sortOrder = "asc",
   onSortChange,
 }) {
+  const safeLocalFilter = typeof localFilter === "string" ? localFilter : String(localFilter || "");
+
+  const handleFilterChange = (e) => {
+    setLocalFilter(String(e?.target?.value ?? ""));
+  };
+
+  const handleClearFilter = () => {
+    setLocalFilter("");
+  };
+
   return (
     <section className="toolbar">
       <div className="toolbar-left">
@@ -61,10 +72,10 @@ function ResultsToolbar({
               className="secondaryBtn smallBtn" 
               onClick={onNewQuote} 
               type="button"
-              title="Empezar una nueva cotizacion desde cero"
+              title="Empezar una nueva cotización desde cero"
             >
               <RefreshCw size={14} />
-              <span>Nueva cotizacion</span>
+              <span>Nueva cotización</span>
             </button>
           )}
 
@@ -73,10 +84,10 @@ function ResultsToolbar({
               className="secondaryBtn smallBtn" 
               onClick={onNewCatalog} 
               type="button"
-              title="Empezar un nuevo catalogo desde cero"
+              title="Empezar un nuevo catálogo desde cero"
             >
               <BookOpen size={14} />
-              <span>Nuevo catalogo</span>
+              <span>Nuevo catálogo</span>
             </button>
           )}
           
@@ -145,18 +156,29 @@ function ResultsToolbar({
           type="button"
         >
           <FileText size={14} />
-          <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotizacion" : "Generar Catalogo"}</span>
+          <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotización" : "Generar catálogo"}</span>
         </button>
       </div>
 
       <div className="toolbar-search">
         <Search size={16} className="search-icon" />
         <input
-          type="text"
+          type="search"
           placeholder="Filtrar productos..."
-          value={localFilter}
-          onChange={(e) => setLocalFilter?.(e.target.value)}
+          value={safeLocalFilter}
+          onChange={handleFilterChange}
+          autoComplete="off"
         />
+        {safeLocalFilter.length > 0 && (
+          <button
+            type="button"
+            className="toolbar-search-clear"
+            onClick={handleClearFilter}
+            title="Limpiar filtro"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
     </section>
   );
