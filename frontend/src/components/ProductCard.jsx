@@ -27,6 +27,12 @@ function ProductCard({
     setLocalPriceAdjustValue(product?.priceAdjustValue || '');
   }, [product?.priceAdjustOp, product?.priceAdjustValue, product?.id]);
 
+  useEffect(() => {
+    if (!isEditing) {
+      setLocalQuantity(String(product?.quantity ?? 1));
+    }
+  }, [product?.id, product?.quantity, isEditing]);
+
   const currentQuantity = isEditing
     ? (parseInt(localQuantity, 10) || 0)
     : (product?.quantity ?? 1);
@@ -47,12 +53,6 @@ function ProductCard({
       window.open(product.productUrl, '_blank', 'noopener,noreferrer');
     }
   }
-
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalQuantity(String(product?.quantity ?? 1));
-    }
-  }, [product?.quantity, product?.id, isEditing]);
 
   const calculateAdjustedPrice = useMemo(() => {
     const originalPrice = parseMoney(product?.price || 0);
