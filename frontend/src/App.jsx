@@ -453,16 +453,22 @@ function App() {
   const allSelected = products.length > 0 && products.every((p) => p.selected);
 
   const visibleProducts = useMemo(() => {
-    const term = localFilter.trim().toLowerCase();
-    let filtered = products;
+    const safeProducts = Array.isArray(products) ? products : [];
+    const term = String(localFilter || "").trim().toLowerCase();
+
+    let filtered = safeProducts;
 
     if (term) {
-      filtered = products.filter((product) =>
-        String(product.name || "").toLowerCase().includes(term) ||
-        String(product.sku || "").toLowerCase().includes(term) ||
-        String(product.shortDescription || "").toLowerCase().includes(term) ||
-        String(product.price || "").toLowerCase().includes(term)
-      );
+      filtered = safeProducts.filter((product) => {
+        if (!product) return false;
+
+        return (
+          String(product.name || "").toLowerCase().includes(term) ||
+          String(product.sku || "").toLowerCase().includes(term) ||
+          String(product.shortDescription || "").toLowerCase().includes(term) ||
+          String(product.price || "").toLowerCase().includes(term)
+        );
+      });
     }
 
     return getSortedProducts(filtered);
