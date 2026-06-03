@@ -138,13 +138,12 @@ function getQuoteNumbers(product) {
   };
 }
 
-function buildRows(products, currency, orientation, options = {}) {
+function buildRows(products, currency, orientation) {
   let subtotalGravado = 0;
   let subtotalExento = 0;
   let subtotalExcluido = 0;
   let subtotalPrecioFinal = 0;
   let ivaTotal = 0;
-  const hideTaxBreakdown = Boolean(options.hideTaxBreakdown);
 
   const rowsHtml = products.map((product) => {
     const q = getQuoteNumbers(product);
@@ -161,25 +160,21 @@ function buildRows(products, currency, orientation, options = {}) {
     }
 
     let ivaDisplay = '';
-    if (!hideTaxBreakdown) {
-      if (q.isExcluido) {
-        ivaDisplay = '<span class="iva-excluido">Excluido</span>';
-      } else if (q.isExento) {
-        ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
-      } else if (q.isPrecioFinal) {
-        ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
-      } else if (q.isGravado5) {
-        ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
-      } else {
-        ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
-      }
+    if (q.isExcluido) {
+      ivaDisplay = '<span class="iva-excluido">Excluido</span>';
+    } else if (q.isExento) {
+      ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
+    } else if (q.isPrecioFinal) {
+      ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
+    } else if (q.isGravado5) {
+      ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+    } else {
+      ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
     }
 
-    const unitPriceDisplay = hideTaxBreakdown
+    const unitPriceDisplay = q.isPrecioFinal 
       ? formatMoney(q.priceWithIva, currency)
-      : q.isPrecioFinal
-        ? formatMoney(q.priceWithIva, currency)
-        : formatMoney(q.priceWithoutIva, currency);
+      : formatMoney(q.priceWithoutIva, currency);
 
     return `
       <tr class="product-row">
@@ -196,11 +191,9 @@ function buildRows(products, currency, orientation, options = {}) {
               <div class="product-meta">
                 SKU: ${escapeHtml(product.sku || "N/D")}
               </div>
-              ${!hideTaxBreakdown ? `
-                <div class="product-iva">
-                  ${ivaDisplay}
-                </div>
-              ` : ''}
+              <div class="product-iva">
+                ${ivaDisplay}
+              </div>
             </div>
             ${product.image ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
@@ -261,9 +254,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     ivaTotal, 
     totalGeneral,
     valorAPagar 
-  } = buildRows(products, currency, orientation, {
-    hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown),
-  });
+  } = buildRows(products, currency, orientation);
 
   const dateValue =
     quoteMeta.date ||
