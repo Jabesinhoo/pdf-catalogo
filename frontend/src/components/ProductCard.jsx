@@ -48,9 +48,11 @@ function ProductCard({
     }
   }
 
-  if (!isEditing && String(product?.quantity ?? 1) !== localQuantity) {
-    setLocalQuantity(String(product?.quantity ?? 1));
-  }
+  useEffect(() => {
+    if (!isEditing) {
+      setLocalQuantity(String(product?.quantity ?? 1));
+    }
+  }, [product?.quantity, product?.id, isEditing]);
 
   const calculateAdjustedPrice = useMemo(() => {
     const originalPrice = parseMoney(product?.price || 0);
