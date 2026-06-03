@@ -155,6 +155,7 @@ function App() {
     documentTitle: "CATALOGO",
     quoteNumber: "",
     paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
+    hideTaxBreakdown: false,
   });
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -453,26 +454,25 @@ function App() {
   const allSelected = products.length > 0 && products.every((p) => p.selected);
 
   const visibleProducts = useMemo(() => {
-  const safeProducts = Array.isArray(products) ? products : [];
-  const term = String(localFilter || "").trim().toLowerCase();
+    const safeProducts = Array.isArray(products) ? products : [];
+    const term = String(localFilter || "").trim().toLowerCase();
+    let filtered = safeProducts;
 
-  let filtered = safeProducts;
+    if (term) {
+      filtered = safeProducts.filter((product) => {
+        if (!product) return false;
 
-  if (term) {
-    filtered = safeProducts.filter((product) => {
-      if (!product) return false;
+        return (
+          String(product.name || "").toLowerCase().includes(term) ||
+          String(product.sku || "").toLowerCase().includes(term) ||
+          String(product.shortDescription || "").toLowerCase().includes(term) ||
+          String(product.price || "").toLowerCase().includes(term)
+        );
+      });
+    }
 
-      return (
-        String(product.name || "").toLowerCase().includes(term) ||
-        String(product.sku || "").toLowerCase().includes(term) ||
-        String(product.shortDescription || "").toLowerCase().includes(term) ||
-        String(product.price || "").toLowerCase().includes(term)
-      );
-    });
-  }
-
-  return getSortedProducts(filtered);
-}, [products, localFilter, sortBy, sortOrder]);
+    return getSortedProducts(filtered);
+  }, [products, localFilter, sortBy, sortOrder]);
 
   const moveProduct = (dragIndex, hoverIndex) => {
     if (sortBy !== "manual") return;
@@ -817,6 +817,7 @@ function App() {
       documentTitle: "COTIZACION",
       quoteNumber: "",
       paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
+      hideTaxBreakdown: false,
     }));
 
     setShowNewQuoteModal(false);
@@ -835,6 +836,7 @@ function App() {
     setQuoteMeta((prev) => ({
       ...prev,
       documentTitle: "CATALOGO",
+      hideTaxBreakdown: false,
     }));
 
     setShowNewCatalogModal(false);
