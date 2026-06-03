@@ -131,17 +131,15 @@ function getIvaBadge(product) {
   }
 }
 
-function buildRows(products = [], options = {}) {
-  const hideTaxBreakdown = Boolean(options.hideTaxBreakdown);
-
+function buildRows(products = []) {
   return products
     .map((product, index) => {
       const productUrl = product.productUrl || '#';
       const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
       
-      // Comportamiento anterior por defecto. Si hideTaxBreakdown está activo, no se muestra desglose visual por producto.
-      const showBreakdown = !hideTaxBreakdown && !q.isPrecioFinal;
+      // Para PRECIO FINAL no mostrar desglose
+      const showBreakdown = !q.isPrecioFinal;
       
       return `
         <tr class="product-row">
@@ -156,11 +154,9 @@ function buildRows(products = [], options = {}) {
                 <div class="product-meta">
                   SKU: ${escapeHtml(product.sku || "N/D")}
                 </div>
-                ${!hideTaxBreakdown ? `
-                  <div class="product-iva">
-                    ${ivaBadge}
-                  </div>
-                ` : ''}
+                <div class="product-iva">
+                  ${ivaBadge}
+                </div>
                 ${showBreakdown ? `
                   <div class="product-price-breakdown">
                     <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
@@ -558,7 +554,7 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
               </tr>
             </thead>
             <tbody>
-              ${buildRows(products, { hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown) })}
+              ${buildRows(products)}
             </tbody>
           </table>
 
