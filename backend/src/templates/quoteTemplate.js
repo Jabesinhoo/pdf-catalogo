@@ -138,12 +138,13 @@ function getQuoteNumbers(product) {
   };
 }
 
-function buildRows(products, currency, orientation) {
+function buildRows(products, currency, orientation, options = {}) {
   let subtotalGravado = 0;
   let subtotalExento = 0;
   let subtotalExcluido = 0;
   let subtotalPrecioFinal = 0;
   let ivaTotal = 0;
+  const hideTaxBreakdown = Boolean(options.hideTaxBreakdown);
 
   const rowsHtml = products.map((product) => {
     const q = getQuoteNumbers(product);
@@ -159,10 +160,26 @@ function buildRows(products, currency, orientation) {
       ivaTotal += q.ivaAmount;
     }
 
-    // En la fila del producto se muestra el precio normal.
-    // La discriminación de IVA queda únicamente en la tabla de totales.
-    const unitPriceDisplay = formatMoney(q.priceWithIva, currency);
-    const totalDisplay = formatMoney(q.priceWithIva * q.quantity, currency);
+    let ivaDisplay = '';
+    if (!hideTaxBreakdown) {
+      if (q.isExcluido) {
+        ivaDisplay = '<span class="iva-excluido">Excluido</span>';
+      } else if (q.isExento) {
+        ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
+      } else if (q.isPrecioFinal) {
+        ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
+      } else if (q.isGravado5) {
+        ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+      } else {
+        ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+      }
+    }
+
+    const unitPriceDisplay = hideTaxBreakdown
+      ? formatMoney(q.priceWithIva, currency)
+      : q.isPrecioFinal
+        ? formatMoney(q.priceWithIva, currency)
+        : formatMoney(q.priceWithoutIva, currency);
 
     return `
       <tr class="product-row">
@@ -179,16 +196,21 @@ function buildRows(products, currency, orientation) {
               <div class="product-meta">
                 SKU: ${escapeHtml(product.sku || "N/D")}
               </div>
+              ${!hideTaxBreakdown ? `
+                <div class="product-iva">
+                  ${ivaDisplay}
+                </div>
+              ` : ''}
             </div>
             ${product.image ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
-                <img src="${escapeHtml(fixImageUrl(product.image))}" alt="${escapeHtml(product.name || "Producto")}" />
+                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
               </div>
             ` : ''}
           </div>
         </td>
         <td class="col-unit">${escapeHtml(unitPriceDisplay)}</td>
-        <td class="col-total">${escapeHtml(totalDisplay)}</td>
+        <td class="col-total">${escapeHtml(formatMoney(q.total, currency))}</td>
       </tr>
     `;
   }).join('');
@@ -204,7 +226,6 @@ function buildRows(products, currency, orientation) {
     subtotalExcluido,
     subtotalPrecioFinal,
     ivaTotal,
-    subtotalGeneral,
     totalGeneral,
     valorAPagar
   };
@@ -237,11 +258,12 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     subtotalExento, 
     subtotalExcluido, 
     subtotalPrecioFinal,
-    ivaTotal,
-    subtotalGeneral,
+    ivaTotal, 
     totalGeneral,
     valorAPagar 
-  } = buildRows(products, currency, orientation);
+  } = buildRows(products, currency, orientation, {
+    hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown),
+  });
 
   const dateValue =
     quoteMeta.date ||
@@ -785,15 +807,11 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <table class="totals-table">
                 <tr>
                   <td>SUBTOTAL:</td>
-                  <td class="total-value">${escapeHtml(formatMoney(subtotalGeneral, currency))}</td>
+                  <td class="total-value">${escapeHtml(formatMoney(totalGeneral, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. GRAVADO:</td>
                   <td class="total-value">${escapeHtml(formatMoney(subtotalGravado, currency))}</td>
-                </tr>
-                <tr>
-                  <td>VR. EXENTO:</td>
-                  <td class="total-value">${escapeHtml(formatMoney(subtotalExento, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. EXCLUIDO:</td>
