@@ -160,21 +160,32 @@ function buildRows(products, currency, orientation) {
     }
 
     let ivaDisplay = '';
+    let ivaDetail = '';
+    let unitPriceDisplay = formatMoney(q.priceWithoutIva, currency);
+    let unitPriceLabel = 'Valor unitario sin IVA';
+
     if (q.isExcluido) {
-      ivaDisplay = '<span class="iva-excluido">Excluido</span>';
+      ivaDisplay = '<span class="iva-badge iva-excluido">EXCLUIDO</span>';
+      ivaDetail = 'Producto excluido de IVA';
+      unitPriceLabel = 'Valor unitario excluido';
     } else if (q.isExento) {
-      ivaDisplay = '<span class="iva-exento">Exento 0%</span>';
+      ivaDisplay = '<span class="iva-badge iva-exento">EXENTO 0%</span>';
+      ivaDetail = 'IVA 0%: ' + escapeHtml(formatMoney(0, currency));
+      unitPriceLabel = 'Valor unitario exento';
     } else if (q.isPrecioFinal) {
-      ivaDisplay = '<span class="iva-precio-final">Precio Final</span>';
+      ivaDisplay = '<span class="iva-badge iva-precio-final">PRECIO FINAL</span>';
+      ivaDetail = 'No discrimina IVA';
+      unitPriceDisplay = formatMoney(q.priceWithIva, currency);
+      unitPriceLabel = 'Precio final unitario';
     } else if (q.isGravado5) {
-      ivaDisplay = `<span class="iva-gravado">IVA 5% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+      ivaDisplay = '<span class="iva-badge iva-gravado5">GRAVADO 5%</span>';
+      ivaDetail = 'IVA 5%: ' + escapeHtml(formatMoney(q.ivaAmount, currency));
     } else {
-      ivaDisplay = `<span class="iva-gravado">IVA 19% (${escapeHtml(formatMoney(q.ivaAmount, currency))})</span>`;
+      ivaDisplay = '<span class="iva-badge iva-gravado19">GRAVADO 19%</span>';
+      ivaDetail = 'IVA 19%: ' + escapeHtml(formatMoney(q.ivaAmount, currency));
     }
 
-    const unitPriceDisplay = q.isPrecioFinal 
-      ? formatMoney(q.priceWithIva, currency)
-      : formatMoney(q.priceWithoutIva, currency);
+    const fixedImage = fixImageUrl(product.image || '');
 
     return `
       <tr class="product-row">
@@ -193,17 +204,23 @@ function buildRows(products, currency, orientation) {
               </div>
               <div class="product-iva">
                 ${ivaDisplay}
+                <span class="iva-detail">${ivaDetail}</span>
               </div>
             </div>
-            ${product.image ? `
+            ${fixedImage ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
-                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" />
+                <img src="${escapeHtml(fixedImage)}" alt="${escapeHtml(product.name)}" />
               </div>
             ` : ''}
           </div>
         </td>
-        <td class="col-unit">${escapeHtml(unitPriceDisplay)}</td>
-        <td class="col-total">${escapeHtml(formatMoney(q.total, currency))}</td>
+        <td class="col-unit">
+          <div class="unit-value">${escapeHtml(unitPriceDisplay)}</div>
+          <div class="unit-label">${escapeHtml(unitPriceLabel)}</div>
+        </td>
+        <td class="col-total">
+          <div class="total-value-cell">${escapeHtml(formatMoney(q.total, currency))}</div>
+        </td>
       </tr>
     `;
   }).join('');
@@ -219,6 +236,7 @@ function buildRows(products, currency, orientation) {
     subtotalExcluido,
     subtotalPrecioFinal,
     ivaTotal,
+    subtotalGeneral,
     totalGeneral,
     valorAPagar
   };
@@ -251,7 +269,8 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     subtotalExento, 
     subtotalExcluido, 
     subtotalPrecioFinal,
-    ivaTotal, 
+    ivaTotal,
+    subtotalGeneral,
     totalGeneral,
     valorAPagar 
   } = buildRows(products, currency, orientation);
@@ -502,45 +521,67 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
           }
 
           .product-iva {
-            font-size: ${orientation === 'landscape' ? '10px' : '12px'};
-            font-weight: 700;
-            color: #8aa646;
-            margin-top: 2px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            margin-top: 4px;
           }
 
-          .iva-excluido {
-            color: #2563eb;
-            font-weight: 600;
-            background: rgba(37, 99, 235, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
+          .iva-badge {
             display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+            padding: ${orientation === 'landscape' ? '2px 6px' : '3px 8px'};
+            border-radius: 999px;
+            font-size: ${orientation === 'landscape' ? '8px' : '10px'};
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: 0.25px;
+            color: #fff;
+            white-space: nowrap;
+            text-transform: uppercase;
+          }
+
+          .iva-detail {
+            display: inline-block;
+            font-size: ${orientation === 'landscape' ? '9px' : '10px'};
+            font-weight: 700;
+            color: #4b5563;
+            white-space: nowrap;
+          }
+
+          .iva-gravado19 {
+            background: #8aa646;
+          }
+
+          .iva-gravado5 {
+            background: #3b82f6;
           }
 
           .iva-exento {
-            color: #16a34a;
-            font-weight: 600;
-            background: rgba(22, 163, 74, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+            background: #16a34a;
+          }
+
+          .iva-excluido {
+            background: #2563eb;
           }
 
           .iva-precio-final {
-            color: #6b7280;
-            font-weight: 600;
-            background: rgba(107, 114, 128, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+            background: #6b7280;
           }
 
-          .iva-gravado {
-            color: #8aa646;
+          .unit-value,
+          .total-value-cell {
+            font-weight: 800;
+            color: #1f2937;
+            white-space: nowrap;
+          }
+
+          .unit-label {
+            margin-top: 3px;
+            font-size: ${orientation === 'landscape' ? '8px' : '9px'};
             font-weight: 600;
+            color: #6b7280;
+            white-space: normal;
           }
 
           .product-image-box {
@@ -798,11 +839,15 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
               <table class="totals-table">
                 <tr>
                   <td>SUBTOTAL:</td>
-                  <td class="total-value">${escapeHtml(formatMoney(totalGeneral, currency))}</td>
+                  <td class="total-value">${escapeHtml(formatMoney(subtotalGeneral, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. GRAVADO:</td>
                   <td class="total-value">${escapeHtml(formatMoney(subtotalGravado, currency))}</td>
+                </tr>
+                <tr>
+                  <td>VR. EXENTO:</td>
+                  <td class="total-value">${escapeHtml(formatMoney(subtotalExento, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. EXCLUIDO:</td>
