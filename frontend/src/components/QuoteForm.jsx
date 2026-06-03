@@ -39,6 +39,7 @@ function QuoteForm({
     documentTitle: documentType === "quote" ? "COTIZACIÓN" : "CATÁLOGO",
     quoteNumber: "",
     paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
+    hideLineIvaBreakdown: false,
   };
 
   function handleChange(field, fieldValue) {
@@ -254,6 +255,23 @@ function QuoteForm({
                     />
                     <span className="quoteForm__hint">
                       Esta nota aparecerá en la cotización. Puedes personalizarla según tus necesidades.
+                    </span>
+                  </label>
+                </div>
+
+                {/* Control de discriminación de IVA por producto */}
+                <div className="quoteForm__field quoteForm__field--full quoteForm__checkboxField">
+                  <label className="quoteForm__checkboxLabel">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(data.hideLineIvaBreakdown)}
+                      onChange={(e) => handleChange("hideLineIvaBreakdown", e.target.checked)}
+                    />
+                    <span className="quoteForm__checkboxText">
+                      <strong>No discriminar IVA debajo de cada producto</strong>
+                      <small>
+                        Si activas esta opción, el VR. UNIT mostrará el precio como viene, con IVA incluido. La discriminación de IVA quedará solo en la tabla de totales.
+                      </small>
                     </span>
                   </label>
                 </div>
