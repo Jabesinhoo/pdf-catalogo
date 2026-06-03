@@ -140,7 +140,7 @@ function buildRows(products = [], options = {}) {
       const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
       
-      // Por defecto se muestra como antes; si hideTaxBreakdown está activo, no mostramos desglose visual en productos.
+      // Comportamiento anterior por defecto. Si hideTaxBreakdown está activo, no se muestra desglose visual por producto.
       const showBreakdown = !hideTaxBreakdown && !q.isPrecioFinal;
       
       return `
@@ -558,9 +558,7 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
               </tr>
             </thead>
             <tbody>
-              ${buildRows(products, {
-                hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown),
-              })}
+              ${buildRows(products, { hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown) })}
             </tbody>
           </table>
 
