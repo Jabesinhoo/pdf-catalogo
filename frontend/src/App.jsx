@@ -90,6 +90,42 @@ function normalizeProduct(product = {}) {
   };
 }
 
+const QUOTE_META_STORAGE_KEY = "tecnocotizador_quote_meta_v2";
+
+const DEFAULT_QUOTE_META = {
+  companyName: "TECNONACHO S.A.S",
+  nit: "901.067.698-7",
+  date: new Date().toISOString().slice(0, 10),
+  customerName: "",
+  currency: "COP",
+  role: "",
+  authorName: "",
+  phone: "",
+  email: "",
+  validityDays: 1,
+  documentTitle: "CATALOGO",
+  quoteNumber: "",
+  paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
+  hideLineIvaBreakdown: false,
+};
+
+function getInitialQuoteMeta() {
+  try {
+    const saved = localStorage.getItem(QUOTE_META_STORAGE_KEY);
+    if (!saved) return DEFAULT_QUOTE_META;
+
+    const parsed = JSON.parse(saved);
+    return {
+      ...DEFAULT_QUOTE_META,
+      ...parsed,
+      date: parsed?.date || DEFAULT_QUOTE_META.date,
+      hideLineIvaBreakdown: Boolean(parsed?.hideLineIvaBreakdown),
+    };
+  } catch {
+    return DEFAULT_QUOTE_META;
+  }
+}
+
 function App() {
   const { theme, toggleTheme } = useTheme();
 
@@ -141,21 +177,15 @@ function App() {
   const [sortBy, setSortBy] = useState("manual");
   const [sortOrder, setSortOrder] = useState("asc");
 
-  const [quoteMeta, setQuoteMeta] = useState({
-    companyName: "TECNONACHO S.A.S",
-    nit: "901.067.698-7",
-    date: new Date().toISOString().slice(0, 10),
-    customerName: "",
-    currency: "COP",
-    role: "",
-    authorName: "",
-    phone: "",
-    email: "",
-    validityDays: 1,
-    documentTitle: "CATALOGO",
-    quoteNumber: "",
-    paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
-  });
+  const [quoteMeta, setQuoteMeta] = useState(getInitialQuoteMeta);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(QUOTE_META_STORAGE_KEY, JSON.stringify(quoteMeta));
+    } catch (error) {
+      console.warn("No se pudo guardar quoteMeta en localStorage:", error);
+    }
+  }, [quoteMeta]);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -453,22 +483,16 @@ function App() {
   const allSelected = products.length > 0 && products.every((p) => p.selected);
 
   const visibleProducts = useMemo(() => {
-    const safeProducts = Array.isArray(products) ? products : [];
-    const term = String(localFilter || "").trim().toLowerCase();
-
-    let filtered = safeProducts;
+    const term = localFilter.trim().toLowerCase();
+    let filtered = products;
 
     if (term) {
-      filtered = safeProducts.filter((product) => {
-        if (!product) return false;
-
-        return (
-          String(product.name || "").toLowerCase().includes(term) ||
-          String(product.sku || "").toLowerCase().includes(term) ||
-          String(product.shortDescription || "").toLowerCase().includes(term) ||
-          String(product.price || "").toLowerCase().includes(term)
-        );
-      });
+      filtered = products.filter((product) =>
+        String(product.name || "").toLowerCase().includes(term) ||
+        String(product.sku || "").toLowerCase().includes(term) ||
+        String(product.shortDescription || "").toLowerCase().includes(term) ||
+        String(product.price || "").toLowerCase().includes(term)
+      );
     }
 
     return getSortedProducts(filtered);
@@ -790,7 +814,10 @@ function App() {
   }
 
   function handleQuoteMetaChange(field, value) {
-    setQuoteMeta((prev) => ({ ...prev, [field]: value }));
+    setQuoteMeta((prev) => ({
+      ...prev,
+      [field]: field === "hideLineIvaBreakdown" ? Boolean(value) : value,
+    }));
   }
 
   function openNewQuoteModal() {
@@ -815,8 +842,6 @@ function App() {
       ...prev,
       date: today,
       documentTitle: "COTIZACION",
-      quoteNumber: "",
-      paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
     }));
 
     setShowNewQuoteModal(false);
@@ -862,7 +887,8 @@ function App() {
       const today = new Date().toISOString().slice(0, 10);
       const currentQuoteMeta = {
         ...quoteMeta,
-        date: today
+        date: today,
+        hideLineIvaBreakdown: Boolean(quoteMeta.hideLineIvaBreakdown),
       };
 
       setQuoteMeta(currentQuoteMeta);
@@ -996,7 +1022,8 @@ function App() {
         date: today,
         customerName: doc.customerName || doc.quoteMeta?.customerName || "",
         quoteNumber: doc.quoteMeta?.quoteNumber || "",
-        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO")
+        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO"),
+        hideLineIvaBreakdown: Boolean(doc.quoteMeta?.hideLineIvaBreakdown ?? quoteMeta.hideLineIvaBreakdown),
       };
 
       setQuoteMeta(updatedQuoteMeta);
