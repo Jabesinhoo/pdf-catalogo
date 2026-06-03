@@ -108,6 +108,50 @@ body {
   max-width: 100%;
   overflow: hidden;
 }
+/* =========================================================
+   Parche TecnoCotizador: checkbox para no discriminar IVA
+   Pégalo al final de frontend/src/App.css si no quieres reemplazarlo.
+   ========================================================= */
+
+.quoteForm__checkboxField {
+  align-self: stretch;
+}
+
+.quoteForm__checkboxLabel {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(138, 166, 70, 0.35);
+  border-radius: 12px;
+  background: rgba(138, 166, 70, 0.08);
+  cursor: pointer;
+}
+
+.quoteForm__checkboxLabel input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.15rem;
+  accent-color: #8aa646;
+  flex: 0 0 auto;
+}
+
+.quoteForm__checkboxText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  line-height: 1.35;
+}
+
+.quoteForm__checkboxText strong {
+  font-size: 0.95rem;
+  color: var(--text-primary, #1f2937);
+}
+
+.quoteForm__checkboxText small {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #64748b);
+}
 
 .docSidebar {
   width: 280px;
