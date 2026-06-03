@@ -39,7 +39,6 @@ function QuoteForm({
     documentTitle: documentType === "quote" ? "COTIZACIÓN" : "CATÁLOGO",
     quoteNumber: "",
     paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
-    hideTaxBreakdown: false,
   };
 
   function handleChange(field, fieldValue) {
