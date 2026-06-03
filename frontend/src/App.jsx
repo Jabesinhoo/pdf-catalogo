@@ -22,6 +22,57 @@ import { apiFetch } from "./services/api";
 import { useSessionKeepAlive } from './hooks/useSessionKeepAlive';
 import DraggableProductCard from './components/DraggableProductCard';
 
+
+const QUOTE_META_STORAGE_KEY = "tecnocotizador_quote_meta_v1";
+
+function getDefaultQuoteMeta(documentType = "catalog") {
+  return {
+    companyName: "TECNONACHO S.A.S",
+    nit: "901.067.698-7",
+    date: new Date().toISOString().slice(0, 10),
+    customerName: "",
+    currency: "COP",
+    role: "",
+    authorName: "",
+    phone: "",
+    email: "",
+    validityDays: 1,
+    documentTitle: documentType === "quote" ? "COTIZACION" : "CATALOGO",
+    quoteNumber: "",
+    paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
+    hideTaxBreakdown: false,
+  };
+}
+
+function loadStoredQuoteMeta() {
+  const defaults = getDefaultQuoteMeta();
+
+  try {
+    const raw = window.localStorage.getItem(QUOTE_META_STORAGE_KEY);
+    if (!raw) return defaults;
+
+    const stored = JSON.parse(raw);
+    if (!stored || typeof stored !== "object") return defaults;
+
+    return {
+      ...defaults,
+      ...stored,
+      hideTaxBreakdown: Boolean(stored.hideTaxBreakdown),
+    };
+  } catch (error) {
+    console.warn("No se pudo cargar quoteMeta desde localStorage:", error);
+    return defaults;
+  }
+}
+
+function persistQuoteMeta(quoteMeta) {
+  try {
+    window.localStorage.setItem(QUOTE_META_STORAGE_KEY, JSON.stringify(quoteMeta || {}));
+  } catch (error) {
+    console.warn("No se pudo guardar quoteMeta en localStorage:", error);
+  }
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -141,22 +192,11 @@ function App() {
   const [sortBy, setSortBy] = useState("manual");
   const [sortOrder, setSortOrder] = useState("asc");
 
-  const [quoteMeta, setQuoteMeta] = useState({
-    companyName: "TECNONACHO S.A.S",
-    nit: "901.067.698-7",
-    date: new Date().toISOString().slice(0, 10),
-    customerName: "",
-    currency: "COP",
-    role: "",
-    authorName: "",
-    phone: "",
-    email: "",
-    validityDays: 1,
-    documentTitle: "CATALOGO",
-    quoteNumber: "",
-    paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
-    hideTaxBreakdown: false,
-  });
+  const [quoteMeta, setQuoteMeta] = useState(() => loadStoredQuoteMeta());
+
+  useEffect(() => {
+    persistQuoteMeta(quoteMeta);
+  }, [quoteMeta]);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -817,7 +857,6 @@ function App() {
       documentTitle: "COTIZACION",
       quoteNumber: "",
       paymentNote: "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA",
-      hideTaxBreakdown: false,
     }));
 
     setShowNewQuoteModal(false);
@@ -836,7 +875,6 @@ function App() {
     setQuoteMeta((prev) => ({
       ...prev,
       documentTitle: "CATALOGO",
-      hideTaxBreakdown: false,
     }));
 
     setShowNewCatalogModal(false);
@@ -994,11 +1032,13 @@ function App() {
 
       const today = new Date().toISOString().slice(0, 10);
       const updatedQuoteMeta = {
+        ...getDefaultQuoteMeta(doc.type),
         ...(doc.quoteMeta || quoteMeta),
         date: today,
         customerName: doc.customerName || doc.quoteMeta?.customerName || "",
         quoteNumber: doc.quoteMeta?.quoteNumber || "",
-        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO")
+        documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO"),
+        hideTaxBreakdown: Boolean(doc.quoteMeta?.hideTaxBreakdown ?? quoteMeta.hideTaxBreakdown),
       };
 
       setQuoteMeta(updatedQuoteMeta);
@@ -1134,6 +1174,8 @@ function App() {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
+          hideTaxBreakdown={Boolean(quoteMeta.hideTaxBreakdown)}
+          onHideTaxBreakdownChange={(checked) => handleQuoteMetaChange("hideTaxBreakdown", checked)}
         />
 
         <MassIvaEditor
