@@ -131,13 +131,18 @@ function getIvaBadge(product) {
   }
 }
 
-function buildRows(products = []) {
+function buildRows(products = [], options = {}) {
+  const hideTaxBreakdown = Boolean(options.hideTaxBreakdown);
+
   return products
     .map((product, index) => {
       const productUrl = product.productUrl || '#';
+      const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
-      const unitPriceDisplay = formatMoney(q.priceWithIva);
-
+      
+      // Por defecto se muestra como antes; si hideTaxBreakdown está activo, no mostramos desglose visual en productos.
+      const showBreakdown = !hideTaxBreakdown && !q.isPrecioFinal;
+      
       return `
         <tr class="product-row">
           <td class="col-item">${index + 1}<\/td>
@@ -151,6 +156,17 @@ function buildRows(products = []) {
                 <div class="product-meta">
                   SKU: ${escapeHtml(product.sku || "N/D")}
                 </div>
+                ${!hideTaxBreakdown ? `
+                  <div class="product-iva">
+                    ${ivaBadge}
+                  </div>
+                ` : ''}
+                ${showBreakdown ? `
+                  <div class="product-price-breakdown">
+                    <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
+                    <span class="price-with-iva">Con IVA: ${escapeHtml(formatMoney(q.priceWithIva))}</span>
+                  </div>
+                ` : ''}
               </div>
 
               <div class="product-image-box">
@@ -162,7 +178,7 @@ function buildRows(products = []) {
               </div>
             </div>
           <\/td>
-          <td class="col-price">${escapeHtml(unitPriceDisplay)}<\/td>
+          <td class="col-price">${escapeHtml(formatMoney(q.priceWithIva))}<\/td>
         <\/tr>
       `;
     })
@@ -542,7 +558,9 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
               </tr>
             </thead>
             <tbody>
-              ${buildRows(products)}
+              ${buildRows(products, {
+                hideTaxBreakdown: Boolean(quoteMeta.hideTaxBreakdown),
+              })}
             </tbody>
           </table>
 
