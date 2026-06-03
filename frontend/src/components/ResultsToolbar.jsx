@@ -34,18 +34,7 @@ function ResultsToolbar({
   sortBy = "name",
   sortOrder = "asc",
   onSortChange,
-  hideTaxBreakdown = false,
-  onHideTaxBreakdownChange,
 }) {
-  const safeLocalFilter = typeof localFilter === "string" ? localFilter : String(localFilter || "");
-
-  function handleFilterChange(event) {
-    setLocalFilter?.(String(event?.target?.value ?? ""));
-  }
-
-  function handleHideTaxBreakdownChange(event) {
-    onHideTaxBreakdownChange?.(Boolean(event?.target?.checked));
-  }
   return (
     <section className="toolbar">
       <div className="toolbar-left">
@@ -98,18 +87,6 @@ function ResultsToolbar({
           >
             {allSelected ? "Deseleccionar todos (PDF)" : "Seleccionar todos (PDF)"}
           </button>
-
-          <label
-            className="secondaryBtn smallBtn toolbar-tax-toggle"
-            title="Oculta el IVA debajo de cada producto en el PDF y muestra el precio unitario normal"
-          >
-            <input
-              type="checkbox"
-              checked={Boolean(hideTaxBreakdown)}
-              onChange={handleHideTaxBreakdownChange}
-            />
-            <span>Sin discriminar IVA</span>
-          </label>
         </div>
       </div>
 
@@ -177,8 +154,8 @@ function ResultsToolbar({
         <input
           type="text"
           placeholder="Filtrar productos..."
-          value={safeLocalFilter}
-          onChange={handleFilterChange}
+          value={localFilter}
+          onChange={(e) => setLocalFilter?.(e.target.value)}
         />
       </div>
     </section>
