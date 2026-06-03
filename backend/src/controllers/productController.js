@@ -71,10 +71,14 @@ async function getCategories(req, res) {
   try {
     const categories = await fetchCategories();
 
-    return res.json(categories);
+    return res.json(Array.isArray(categories) ? categories : []);
   } catch (error) {
+    console.error("❌ Error en GET /api/products/categories:");
+    console.error(error);
+
     return res.status(500).json({
-      message: "No se pudieron cargar las categorías.",
+      success: false,
+      message: error.message || "No se pudieron cargar las categorías.",
       error: String(error.message || error),
     });
   }
