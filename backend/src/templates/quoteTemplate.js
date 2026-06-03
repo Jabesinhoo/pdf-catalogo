@@ -138,7 +138,9 @@ function getQuoteNumbers(product) {
   };
 }
 
-function buildRows(products, currency, orientation) {
+function buildRows(products, currency, orientation, options = {}) {
+  const hideLineIvaBreakdown = Boolean(options.hideLineIvaBreakdown);
+
   let subtotalGravado = 0;
   let subtotalExento = 0;
   let subtotalExcluido = 0;
@@ -162,7 +164,7 @@ function buildRows(products, currency, orientation) {
     let ivaDisplay = '';
     let ivaDetail = '';
     let unitPriceDisplay = formatMoney(q.priceWithoutIva, currency);
-    let unitPriceLabel = 'Valor unitario sin IVA';
+    let unitPriceLabel = 'Valor unitario antes de IVA';
 
     if (q.isExcluido) {
       ivaDisplay = '<span class="iva-badge iva-excluido">EXCLUIDO</span>';
@@ -185,6 +187,13 @@ function buildRows(products, currency, orientation) {
       ivaDetail = 'IVA 19%: ' + escapeHtml(formatMoney(q.ivaAmount, currency));
     }
 
+    // Si el check está activo, no se muestra discriminación de IVA en cada producto.
+    // El precio unitario entra tal cual como precio con IVA incluido y la discriminación queda solo en totales.
+    if (hideLineIvaBreakdown) {
+      unitPriceDisplay = formatMoney(q.priceWithIva, currency);
+      unitPriceLabel = '';
+    }
+
     const fixedImage = fixImageUrl(product.image || '');
 
     return `
@@ -202,21 +211,23 @@ function buildRows(products, currency, orientation) {
               <div class="product-meta">
                 SKU: ${escapeHtml(product.sku || "N/D")}
               </div>
-              <div class="product-iva">
-                ${ivaDisplay}
-                <span class="iva-detail">${ivaDetail}</span>
-              </div>
+              ${hideLineIvaBreakdown ? '' : `
+                <div class="product-iva">
+                  ${ivaDisplay}
+                  <span class="iva-detail">${ivaDetail}</span>
+                </div>
+              `}
             </div>
             ${fixedImage ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
-                <img src="${escapeHtml(fixedImage)}" alt="${escapeHtml(product.name)}" />
+                <img src="${escapeHtml(fixedImage)}" alt="${escapeHtml(product.name || "Producto")}" />
               </div>
             ` : ''}
           </div>
         </td>
         <td class="col-unit">
           <div class="unit-value">${escapeHtml(unitPriceDisplay)}</div>
-          <div class="unit-label">${escapeHtml(unitPriceLabel)}</div>
+          ${unitPriceLabel ? `<div class="unit-label">${escapeHtml(unitPriceLabel)}</div>` : ''}
         </td>
         <td class="col-total">
           <div class="total-value-cell">${escapeHtml(formatMoney(q.total, currency))}</div>
@@ -269,11 +280,13 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     subtotalExento, 
     subtotalExcluido, 
     subtotalPrecioFinal,
-    ivaTotal,
+    ivaTotal, 
     subtotalGeneral,
     totalGeneral,
-    valorAPagar 
-  } = buildRows(products, currency, orientation);
+    valorAPagar
+  } = buildRows(products, currency, orientation, {
+    hideLineIvaBreakdown: Boolean(quoteMeta.hideLineIvaBreakdown),
+  });
 
   const dateValue =
     quoteMeta.date ||
@@ -521,31 +534,58 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
           }
 
           .product-iva {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 5px;
-            margin-top: 4px;
+            font-size: ${orientation === 'landscape' ? '10px' : '12px'};
+            font-weight: 700;
+            color: #8aa646;
+            margin-top: 2px;
           }
+
+          .iva-excluido {
+            color: #2563eb;
+            font-weight: 600;
+            background: rgba(37, 99, 235, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+          }
+
+          .iva-exento {
+            color: #16a34a;
+            font-weight: 600;
+            background: rgba(22, 163, 74, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+          }
+
+          .iva-precio-final {
+            color: #6b7280;
+            font-weight: 600;
+            background: rgba(107, 114, 128, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
+          }
+
+          .iva-gravado {
+            color: #8aa646;
+            font-weight: 600;
+          }
+
+
 
           .iva-badge {
             display: inline-block;
-            padding: ${orientation === 'landscape' ? '2px 6px' : '3px 8px'};
+            padding: 2px 7px;
             border-radius: 999px;
             font-size: ${orientation === 'landscape' ? '8px' : '10px'};
             font-weight: 800;
-            line-height: 1.2;
             letter-spacing: 0.25px;
             color: #fff;
-            white-space: nowrap;
-            text-transform: uppercase;
-          }
-
-          .iva-detail {
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '10px'};
-            font-weight: 700;
-            color: #4b5563;
+            margin-right: 6px;
             white-space: nowrap;
           }
 
@@ -554,33 +594,40 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
           }
 
           .iva-gravado5 {
-            background: #3b82f6;
+            background: #2563eb;
+          }
+
+          .iva-excluido {
+            background: #7c3aed;
           }
 
           .iva-exento {
             background: #16a34a;
           }
 
-          .iva-excluido {
-            background: #2563eb;
-          }
-
           .iva-precio-final {
             background: #6b7280;
+          }
+
+          .iva-detail {
+            display: inline-block;
+            color: #475569;
+            font-size: ${orientation === 'landscape' ? '8px' : '10px'};
+            font-weight: 600;
+            margin-top: 3px;
           }
 
           .unit-value,
           .total-value-cell {
             font-weight: 800;
-            color: #1f2937;
-            white-space: nowrap;
+            color: #111827;
           }
 
           .unit-label {
             margin-top: 3px;
-            font-size: ${orientation === 'landscape' ? '8px' : '9px'};
-            font-weight: 600;
-            color: #6b7280;
+            font-size: ${orientation === 'landscape' ? '8px' : '10px'};
+            font-weight: 500;
+            color: #64748b;
             white-space: normal;
           }
 
@@ -844,10 +891,6 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
                 <tr>
                   <td>VR. GRAVADO:</td>
                   <td class="total-value">${escapeHtml(formatMoney(subtotalGravado, currency))}</td>
-                </tr>
-                <tr>
-                  <td>VR. EXENTO:</td>
-                  <td class="total-value">${escapeHtml(formatMoney(subtotalExento, currency))}</td>
                 </tr>
                 <tr>
                   <td>VR. EXCLUIDO:</td>
