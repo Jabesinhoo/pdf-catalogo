@@ -91,6 +91,7 @@ function normalizeProduct(product = {}) {
 }
 
 const QUOTE_META_STORAGE_KEY = "tecnocotizador_quote_meta_v2";
+const PRODUCT_DRAFT_STORAGE_KEY = "tecnocotizador_products_draft_v1";
 
 const DEFAULT_QUOTE_META = {
   companyName: "TECNONACHO S.A.S",
@@ -126,6 +127,20 @@ function getInitialQuoteMeta() {
   }
 }
 
+function getInitialProducts() {
+  try {
+    const saved = localStorage.getItem(PRODUCT_DRAFT_STORAGE_KEY);
+    if (!saved) return [];
+
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(Boolean).map(normalizeProduct);
+  } catch {
+    return [];
+  }
+}
+
 function App() {
   const { theme, toggleTheme } = useTheme();
 
@@ -150,7 +165,7 @@ function App() {
   const [documentType, setDocumentType] = useState("catalog");
   const [mode, setMode] = useState("url");
   const [queryText, setQueryText] = useState("");
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState(getInitialProducts);
   const [categories, setCategories] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [stockStatuses, setStockStatuses] = useState(["instock"]);
@@ -256,6 +271,14 @@ function App() {
 }, []);
 
   useSessionKeepAlive(authUser ? 5 * 60 * 1000 : null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PRODUCT_DRAFT_STORAGE_KEY, JSON.stringify(products));
+    } catch (error) {
+      console.warn("No se pudo guardar el borrador de productos:", error);
+    }
+  }, [products]);
 
   function handleOpenStats() {
     setShowStatsPanel(true);
@@ -474,29 +497,44 @@ function App() {
   };
 
   // ===== FUNCIONES PARA PRODUCTOS =====
-  const selectedProducts = useMemo(() => {
-    const selected = products.filter((p) => p.selected);
-    return getSortedProducts(selected);
-  }, [products, sortBy, sortOrder]);
+  const safeProducts = useMemo(() => {
+    return Array.isArray(products) ? products.filter(Boolean) : [];
+  }, [products]);
 
-  const selectedCount = products.filter((p) => p.selected).length;
-  const allSelected = products.length > 0 && products.every((p) => p.selected);
+  const selectedProducts = useMemo(() => {
+    const selected = safeProducts.filter((p) => Boolean(p?.selected));
+    return getSortedProducts(selected);
+  }, [safeProducts, sortBy, sortOrder]);
+
+  const selectedCount = useMemo(() => {
+    return safeProducts.filter((p) => Boolean(p?.selected)).length;
+  }, [safeProducts]);
+
+  const allSelected = useMemo(() => {
+    return safeProducts.length > 0 && safeProducts.every((p) => Boolean(p?.selected));
+  }, [safeProducts]);
 
   const visibleProducts = useMemo(() => {
-    const term = localFilter.trim().toLowerCase();
-    let filtered = products;
+    const term = String(localFilter ?? "").trim().toLowerCase();
 
-    if (term) {
-      filtered = products.filter((product) =>
-        String(product.name || "").toLowerCase().includes(term) ||
-        String(product.sku || "").toLowerCase().includes(term) ||
-        String(product.shortDescription || "").toLowerCase().includes(term) ||
-        String(product.price || "").toLowerCase().includes(term)
-      );
-    }
+    const filtered = term.length > 0
+      ? safeProducts.filter((product) => {
+          const searchableText = [
+            product?.name,
+            product?.sku,
+            product?.shortDescription,
+            product?.price,
+            product?.productUrl,
+          ]
+            .map((value) => String(value ?? "").toLowerCase())
+            .join(" ");
+
+          return searchableText.includes(term);
+        })
+      : safeProducts;
 
     return getSortedProducts(filtered);
-  }, [products, localFilter, sortBy, sortOrder]);
+  }, [safeProducts, localFilter, sortBy, sortOrder]);
 
   const moveProduct = (dragIndex, hoverIndex) => {
     if (sortBy !== "manual") return;
@@ -504,6 +542,7 @@ function App() {
     setProducts((prevProducts) => {
       const newProducts = [...prevProducts];
       const draggedProduct = newProducts[dragIndex];
+      if (!draggedProduct) return prevProducts;
       newProducts.splice(dragIndex, 1);
       newProducts.splice(hoverIndex, 0, draggedProduct);
       return newProducts;
