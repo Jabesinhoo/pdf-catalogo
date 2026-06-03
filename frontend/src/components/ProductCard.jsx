@@ -48,22 +48,20 @@ function ProductCard({
     }
   }
 
-  useEffect(() => {
-    if (!isEditing) {
-      setLocalQuantity(String(product?.quantity ?? 1));
-    }
-  }, [product?.quantity, product?.id, isEditing]);
+  if (!isEditing && String(product?.quantity ?? 1) !== localQuantity) {
+    setLocalQuantity(String(product?.quantity ?? 1));
+  }
 
   const calculateAdjustedPrice = useMemo(() => {
     const originalPrice = parseMoney(product?.price || 0);
     const op = localPriceAdjustOp;
     const val = localPriceAdjustValue;
-
+    
     if (!op || !val) return originalPrice;
-
+    
     const value = parseFloat(val);
     if (isNaN(value)) return originalPrice;
-
+    
     if (op === '/') {
       return originalPrice / value;
     } else if (op === '*') {
@@ -77,7 +75,7 @@ function ProductCard({
 
   const calculatePriceWithoutIva = () => {
     if (!displayPrice) return null;
-
+    
     if (product.ivaType === 'precio_final') return null;
 
     let ivaRate = 0;
@@ -93,7 +91,7 @@ function ProductCard({
 
   const calculateIvaAmount = () => {
     if (!displayPrice) return null;
-
+    
     if (product.ivaType === 'precio_final') return null;
 
     let ivaRate = 0;
