@@ -10,7 +10,6 @@ import {
   Mail, 
   Clock, 
   MessageSquare,
-  ReceiptText,
   ChevronDown,
   ChevronUp
 } from "lucide-react";
@@ -240,24 +239,6 @@ function QuoteForm({
                       placeholder="correo@ejemplo.com"
                     />
                   </label>
-                </div>
-
-                {/* Mostrar sin discriminar IVA */}
-                <div className="quoteForm__field quoteForm__field--full">
-                  <label className="quoteForm__checkboxLabel">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(data.hideTaxBreakdown)}
-                      onChange={(e) => handleChange("hideTaxBreakdown", e.target.checked)}
-                    />
-                    <span className="quoteForm__checkboxText">
-                      <ReceiptText size={14} />
-                      Mostrar sin discriminar IVA en los productos
-                    </span>
-                  </label>
-                  <span className="quoteForm__hint">
-                    Al activar esta opción, el PDF oculta el IVA debajo de cada producto y muestra el precio unitario normal. La tabla final de totales se conserva.
-                  </span>
                 </div>
 
                 {/* Nota de pago */}
