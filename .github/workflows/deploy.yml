@@ -17,6 +17,7 @@ jobs:
       WEB_CURRENT: /var/www/tecnocotizador/current
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
       VPS_SSH_KEY_B64: ${{ secrets.VPS_SSH_KEY_B64 }}
+      DEPLOY_SHA: ${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +26,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
           install -m 700 -d ~/.ssh
 
           if [ -n "${VPS_SSH_KEY:-}" ]; then
@@ -43,78 +45,322 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
           echo "🔍 Validando llave..."
-          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null
+          ssh-keygen -y -f ~/.ssh/id_ed25519 >/dev/null
 
           ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
           chmod 644 ~/.ssh/known_hosts
 
           echo "🔍 Probando conexión SSH..."
-          ssh -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=yes \
-              -o ConnectTimeout=10 \
-              -i ~/.ssh/id_ed25519 \
-              -p "$VPS_PORT" \
-              "$VPS_USER@$VPS_HOST" \
-              "echo '✅ SSH OK'"
+          ssh \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 \
+            -i ~/.ssh/id_ed25519 \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "echo '✅ SSH OK'"
 
       - name: Deploy
         shell: bash
         run: |
-          ssh -o IdentitiesOnly=yes \
-              -i ~/.ssh/id_ed25519 \
-              -p "$VPS_PORT" \
-              "$VPS_USER@$VPS_HOST" \
-              "APP_DIR='$APP_DIR' WEB_CURRENT='$WEB_CURRENT' REPO='https://github.com/${{ github.repository }}.git' bash -se" <<'ENDSSH'
+          ssh \
+            -o IdentitiesOnly=yes \
+            -i ~/.ssh/id_ed25519 \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" \
+            "APP_DIR='$APP_DIR' WEB_CURRENT='$WEB_CURRENT' DEPLOY_SHA='$DEPLOY_SHA' REPO='https://github.com/${{ github.repository }}.git' bash -se" <<'ENDSSH'
+
             set -Eeuo pipefail
-            echo '🚀 Iniciando deploy...'
 
+            PROCESS_NAME="tecnocotizador-backend"
             TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-            RELEASE_DIR="$APP_DIR/releases/$TIMESTAMP"
-            CURRENT_DIR="$APP_DIR/current"
 
-            echo "📦 Creando release $TIMESTAMP"
-            mkdir -p "$APP_DIR/releases"
-            mkdir -p "$RELEASE_DIR"
+            RELEASES_DIR="$APP_DIR/releases"
+            RELEASE_DIR="$RELEASES_DIR/$TIMESTAMP"
+            CURRENT_DIR="$APP_DIR/current"
+            SHARED_ENV="$APP_DIR/shared/backend.env"
+
+            echo "🚀 Iniciando deploy"
+            echo "📌 Commit: $DEPLOY_SHA"
+            echo "📦 Release: $RELEASE_DIR"
+
+            # --------------------------------------------------
+            # VALIDACIONES PREVIAS
+            # --------------------------------------------------
+
+            test -n "$APP_DIR"
+            test -n "$DEPLOY_SHA"
+            test -f "$SHARED_ENV"
+
+            mkdir -p "$RELEASES_DIR"
             mkdir -p /var/www/tecnocotizador
 
-            echo "📂 Clonando repositorio..."
-            git clone --depth 1 "$REPO" "$RELEASE_DIR"
+            APP_PORT="$(
+              awk -F= '
+                $1 == "PORT" {
+                  sub(/^[^=]*=/, "")
+                  print
+                }
+              ' "$SHARED_ENV" | tail -1
+            )"
 
-            echo "🔗 Enlazando .env"
-            ln -sfn "$APP_DIR/shared/backend.env" "$RELEASE_DIR/backend/.env"
+            case "$APP_PORT" in
+              ''|*[!0-9]*)
+                APP_PORT=4017
+                ;;
+            esac
 
-            echo "📦 Instalando backend..."
-            cd "$RELEASE_DIR/backend"
-            npm ci --omit=dev
+            echo "🌐 Puerto backend: $APP_PORT"
 
-            echo "📦 Instalando frontend..."
-            cd "$RELEASE_DIR/frontend"
-            npm ci
-            npm run build
+            # --------------------------------------------------
+            # RECORDAR ESTADO ANTERIOR
+            # --------------------------------------------------
 
-            echo "🔍 Verificando build frontend..."
-            test -f "$RELEASE_DIR/frontend/dist/index.html"
+            OLD_CURRENT_TARGET="$(readlink "$CURRENT_DIR" 2>/dev/null || true)"
+            OLD_WEB_TARGET="$(readlink "$WEB_CURRENT" 2>/dev/null || true)"
 
-            echo "🔗 Actualizando enlace current del proyecto..."
-            ln -sfn "$RELEASE_DIR" "$CURRENT_DIR"
+            OLD_PID="$(pm2 pid "$PROCESS_NAME" 2>/dev/null || true)"
+            OLD_SCRIPT=""
+            OLD_CWD=""
 
-            echo "🔗 Corrigiendo symlink público del frontend..."
-            FRONTEND_DIST="$(readlink -f "$RELEASE_DIR/frontend/dist")"
-            test -d "$FRONTEND_DIST"
+            if [[ "$OLD_PID" =~ ^[0-9]+$ ]] &&
+               [ "$OLD_PID" -gt 0 ] &&
+               [ -d "/proc/$OLD_PID" ]; then
 
-            rm -f "$WEB_CURRENT"
-            ln -s "$FRONTEND_DIST" "$WEB_CURRENT"
+              OLD_CWD="$(readlink -f "/proc/$OLD_PID/cwd" 2>/dev/null || true)"
 
-            echo "🔍 Verificando symlink público..."
-            test -f "$WEB_CURRENT/index.html"
+              OLD_SCRIPT="$(
+                tr '\0' '\n' < "/proc/$OLD_PID/cmdline" \
+                | sed -n '2p'
+              )"
 
-            echo "🔄 Reiniciando PM2"
-            if pm2 describe tecnocotizador-backend > /dev/null 2>&1; then
-              pm2 restart tecnocotizador-backend --update-env
+              echo "🛟 Backend anterior detectado"
+              echo "   script: $OLD_SCRIPT"
+              echo "   cwd:    $OLD_CWD"
             else
-              pm2 start "$APP_DIR/shared/ecosystem.config.js" --env production
+              echo "ℹ️ No había proceso PM2 anterior"
             fi
 
+            rollback_backend() {
+              echo "↩️ Restaurando backend anterior..."
+
+              pm2 delete "$PROCESS_NAME" >/dev/null 2>&1 || true
+
+              if [ -n "$OLD_SCRIPT" ] &&
+                 [ -f "$OLD_SCRIPT" ] &&
+                 [ -n "$OLD_CWD" ] &&
+                 [ -d "$OLD_CWD" ]; then
+
+                pm2 start "$OLD_SCRIPT" \
+                  --name "$PROCESS_NAME" \
+                  --cwd "$OLD_CWD"
+
+                pm2 save
+                echo "✅ Backend anterior restaurado"
+              else
+                echo "⚠️ No se encontró backend anterior para restaurar"
+              fi
+            }
+
+            rollback_symlinks() {
+              echo "↩️ Restaurando enlaces anteriores..."
+
+              if [ -n "$OLD_CURRENT_TARGET" ]; then
+                ln -sfnT "$OLD_CURRENT_TARGET" "$CURRENT_DIR"
+              else
+                rm -f "$CURRENT_DIR"
+              fi
+
+              if [ -n "$OLD_WEB_TARGET" ]; then
+                ln -sfnT "$OLD_WEB_TARGET" "$WEB_CURRENT"
+              else
+                rm -f "$WEB_CURRENT"
+              fi
+            }
+
+            # --------------------------------------------------
+            # CREAR RELEASE EXACTO DEL COMMIT DE ACTIONS
+            # --------------------------------------------------
+
+            echo "📂 Descargando commit exacto..."
+
+            mkdir -p "$RELEASE_DIR"
+
+            git -C "$RELEASE_DIR" init -q
+            git -C "$RELEASE_DIR" remote add origin "$REPO"
+            git -C "$RELEASE_DIR" fetch --depth 1 origin "$DEPLOY_SHA"
+            git -C "$RELEASE_DIR" checkout --detach FETCH_HEAD
+
+            ACTUAL_SHA="$(git -C "$RELEASE_DIR" rev-parse HEAD)"
+
+            if [ "$ACTUAL_SHA" != "$DEPLOY_SHA" ]; then
+              echo "❌ El SHA descargado no coincide"
+              rm -rf "$RELEASE_DIR"
+              exit 1
+            fi
+
+            echo "✅ Commit correcto descargado"
+
+            # --------------------------------------------------
+            # CONFIGURACION COMPARTIDA
+            # --------------------------------------------------
+
+            echo "🔗 Enlazando backend.env"
+
+            ln -sfn "$SHARED_ENV" "$RELEASE_DIR/backend/.env"
+
+            test -f "$RELEASE_DIR/backend/.env"
+
+            # --------------------------------------------------
+            # INSTALAR BACKEND
+            # --------------------------------------------------
+
+            echo "📦 Instalando backend..."
+
+            cd "$RELEASE_DIR/backend"
+
+            npm ci \
+              --omit=dev \
+              --no-audit \
+              --no-fund
+
+            echo "🔍 Validando sintaxis backend..."
+
+            while IFS= read -r file; do
+              node --check "$file" >/dev/null
+            done < <(
+              find src -type f -name '*.js' | sort
+            )
+
+            # --------------------------------------------------
+            # INSTALAR Y COMPILAR FRONTEND
+            # --------------------------------------------------
+
+            echo "📦 Instalando frontend..."
+
+            cd "$RELEASE_DIR/frontend"
+
+            npm ci \
+              --no-audit \
+              --no-fund
+
+            npm run build
+
+            test -f "$RELEASE_DIR/frontend/dist/index.html"
+
+            echo "✅ Release compilado correctamente"
+
+            # --------------------------------------------------
+            # CAMBIAR BACKEND
+            # --------------------------------------------------
+
+            echo "🔄 Cambiando backend a release nuevo..."
+
+            pm2 delete "$PROCESS_NAME" >/dev/null 2>&1 || true
+
+            # Esperar que el puerto quede libre.
+            for i in $(seq 1 20); do
+              if ! ss -ltnH | grep -q ":${APP_PORT} "; then
+                break
+              fi
+
+              sleep 0.5
+            done
+
+            if ss -ltnH | grep -q ":${APP_PORT} "; then
+              echo "❌ El puerto $APP_PORT continúa ocupado"
+              rollback_backend
+              rm -rf "$RELEASE_DIR"
+              exit 1
+            fi
+
+            pm2 start "$RELEASE_DIR/backend/src/app.js" \
+              --name "$PROCESS_NAME" \
+              --cwd "$RELEASE_DIR/backend"
+
+            # --------------------------------------------------
+            # HEALTH CHECK
+            # --------------------------------------------------
+
+            echo "🩺 Esperando health check..."
+
+            HEALTH_OK=0
+
+            for i in $(seq 1 30); do
+              if curl \
+                -fsS \
+                --max-time 3 \
+                "http://127.0.0.1:${APP_PORT}/api/health" \
+                >/dev/null 2>&1; then
+
+                HEALTH_OK=1
+                break
+              fi
+
+              sleep 1
+            done
+
+            if [ "$HEALTH_OK" -ne 1 ]; then
+              echo "❌ El backend nuevo no pasó el health check"
+
+              pm2 logs "$PROCESS_NAME" \
+                --lines 80 \
+                --nostream || true
+
+              rollback_backend
+              rm -rf "$RELEASE_DIR"
+
+              exit 1
+            fi
+
+            echo "✅ Backend nuevo saludable"
+
+            # --------------------------------------------------
+            # ACTIVAR RELEASE
+            # --------------------------------------------------
+
+            echo "🔗 Activando release..."
+
+            if ! {
+              ln -sfnT "$RELEASE_DIR" "$CURRENT_DIR"
+
+              ln -sfnT \
+                "$RELEASE_DIR/frontend/dist" \
+                "$WEB_CURRENT"
+
+              test -f "$CURRENT_DIR/backend/src/app.js"
+              test -f "$WEB_CURRENT/index.html"
+            }; then
+
+              echo "❌ Falló la activación de enlaces"
+
+              rollback_symlinks
+              rollback_backend
+
+              rm -rf "$RELEASE_DIR"
+
+              exit 1
+            fi
+
+            # --------------------------------------------------
+            # VERIFICACION FINAL
+            # --------------------------------------------------
+
+            echo "🔍 Verificación final..."
+
+            test "$(readlink -f "$CURRENT_DIR")" = "$RELEASE_DIR"
+
+            curl \
+              -fsS \
+              --max-time 5 \
+              "http://127.0.0.1:${APP_PORT}/api/health" \
+              >/dev/null
+
             pm2 save
-            echo "✅ Deploy completado en $TIMESTAMP"
+
+            echo ""
+            echo "✅ Deploy completado"
+            echo "📦 Release activo: $TIMESTAMP"
+            echo "🔖 Commit activo:  $DEPLOY_SHA"
+
           ENDSSH
