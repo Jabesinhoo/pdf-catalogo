@@ -1,10 +1,11 @@
 const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
-const pool = require('../config/db'); // ✅ SOLO ESTE
+
+const { pool } = require('./db');
 
 const sessionConfig = {
   store: new pgSession({
-    pool: pool,
+    pool,
     tableName: 'session',
   }),
   secret: process.env.SESSION_SECRET || 'tecnocotizador-super-secret-key',

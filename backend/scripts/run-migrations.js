@@ -4,34 +4,65 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const pool = require('../config/db');
+const { pool } = require('../src/config/db');
 
 async function runMigrations() {
   const migrationsDir = path.join(__dirname, '../migrations');
-  const migrationFiles = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.sql'))
+
+  if (!fs.existsSync(migrationsDir)) {
+    throw new Error(`No existe la carpeta de migraciones: ${migrationsDir}`);
+  }
+
+  const migrationFiles = fs
+    .readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.sql'))
     .sort();
-  
-  console.log('🚀 Ejecutando migraciones...\n');
-  
+
+  if (migrationFiles.length === 0) {
+    console.log('No hay archivos .sql en la carpeta migrations.');
+    return;
+  }
+
+  console.log('🚀 Ejecutando migraciones SQL...\n');
+
   for (const file of migrationFiles) {
+    const filePath = path.join(migrationsDir, file);
+    const sql = fs.readFileSync(filePath, 'utf8');
+
     console.log(`📦 Ejecutando: ${file}`);
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    
+
     try {
       await pool.query(sql);
       console.log(`✅ ${file} - OK\n`);
     } catch (error) {
-      console.error(`❌ Error en ${file}:`, error.message);
-      if (!error.message.includes('already exists')) {
-        console.error('Detalles:', error);
-        process.exit(1);
+      const message = error.message || '';
+
+      const isAlreadyApplied =
+        message.includes('already exists') ||
+        message.includes('ya existe') ||
+        message.includes('already exists') ||
+        message.includes('duplicate column') ||
+        message.includes('columna') && message.includes('ya existe');
+
+      if (isAlreadyApplied) {
+        console.log(`⚠️ ${file} parece estar aplicado. Continuando...\n`);
+        continue;
       }
+
+      console.error(`❌ Error en ${file}:`);
+      console.error(error);
+      process.exit(1);
     }
   }
-  
+
   console.log('🎉 Migraciones completadas');
-  await pool.end(); // ✅ aquí sí está bien
 }
 
-runMigrations().catch(console.error);
+runMigrations()
+  .catch((error) => {
+    console.error('❌ Error ejecutando migraciones:', error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await pool.end();
+  });

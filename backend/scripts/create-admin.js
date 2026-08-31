@@ -1,40 +1,66 @@
-const fs = require('fs');
-const path = require('path');
-const pool = require('../config/db');
+const bcrypt = require('bcrypt');
 require('dotenv').config();
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
-  database: process.env.DB_NAME || 'tecnocotizador',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-});
+const { pool } = require('../src/config/db');
 
-async function runMigrations() {
-  const migrationsDir = path.join(__dirname, '../migrations');
-  const migrationFiles = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort();
-  
-  console.log('🚀 Ejecutando migraciones...\n');
-  
-  for (const file of migrationFiles) {
-    console.log(`📦 Ejecutando: ${file}`);
-    const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-    
-    try {
-      await pool.query(sql);
-      console.log(`✅ ${file} - OK\n`);
-    } catch (error) {
-      console.error(`❌ Error en ${file}:`, error.message);
-      if (!error.message.includes('already exists')) {
-        console.error('Detalles:', error);
-        process.exit(1);
-      }
-    }
-  }
-  
-  console.log('🎉 Migraciones completadas');
-  await pool.end();
+async function createAdmin() {
+  const username = process.argv[2] || 'admin';
+  const email = process.argv[3] || 'admin@tecnonacho.com';
+  const password = process.argv[4] || 'Admin123!';
+  const fullName = process.argv[5] || 'Administrador';
+
+  const saltRounds = 10;
+  const passwordHash = await bcrypt.hash(password, saltRounds);
+
+  const query = `
+    INSERT INTO users (
+      username,
+      email,
+      password_hash,
+      full_name,
+      role,
+      is_active,
+      created_by
+    )
+    VALUES ($1, $2, $3, $4, 'admin', true, NULL)
+    ON CONFLICT (username)
+    DO UPDATE SET
+      email = EXCLUDED.email,
+      password_hash = EXCLUDED.password_hash,
+      full_name = EXCLUDED.full_name,
+      role = 'admin',
+      is_active = true
+    RETURNING id, username, email, full_name, role, is_active;
+  `;
+
+  const values = [username, email, passwordHash, fullName];
+
+  const result = await pool.query(query, values);
+  const user = result.rows[0];
+
+  console.log('Usuario administrador creado/actualizado correctamente:');
+  console.log({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    full_name: user.full_name,
+    role: user.role,
+    is_active: user.is_active,
+  });
+
+  console.log('');
+  console.log('Credenciales de acceso:');
+  console.log(`Usuario: ${username}`);
+  console.log(`Correo: ${email}`);
+  console.log(`Contraseña: ${password}`);
 }
 
-runMigrations().catch(console.error);
+createAdmin()
+  .catch((error) => {
+    console.error('Error creando administrador:', error.message);
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await pool.end();
+  });

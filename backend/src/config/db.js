@@ -32,5 +32,6 @@ pool.on("error", (err) => {
 });
 
 pool.verifyDbOnce = verifyDbOnce;
+pool.pool = pool;
 
 module.exports = pool;
