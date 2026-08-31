@@ -166,7 +166,7 @@ function ResultsToolbar({
           type="search"
           placeholder="Filtrar productos..."
           value={safeLocalFilter}
-          onChange={handleFilterChange} 
+          onChange={handleFilterChange}
           autoComplete="off"
         />
         {safeLocalFilter.length > 0 && (

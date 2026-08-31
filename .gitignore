@@ -4,12 +4,18 @@ frontend/node_modules/
 
 .env
 .env.local
-
 dist
 build
 .next
-
 *.log
 .DS_Store
 .vscode
 .idea
+# VPS / runtime
+backend/cache/
+backend/logs/
+current
+releases/
+# Backups temporales
+*.bak
+*.bak-*

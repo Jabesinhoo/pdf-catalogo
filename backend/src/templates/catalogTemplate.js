@@ -66,7 +66,6 @@ function formatMoney(value, currency = "COP") {
 }
 
 function getCatalogNumbers(product) {
-  // Calcular precio ajustado
   let finalPrice = parseMoney(product.price);
   if (product.priceAdjustOp && product.priceAdjustValue) {
     const adjustValue = parseFloat(product.priceAdjustValue);
@@ -115,32 +114,22 @@ function getCatalogNumbers(product) {
   };
 }
 
-function getIvaBadge(product) {
-  const q = getCatalogNumbers(product);
-  
-  if (q.isExcluido) {
-    return '<span class="iva-badge iva-excluido">EXCLUIDO</span>';
-  } else if (q.isExento) {
-    return '<span class="iva-badge iva-exento">EXENTO 0%</span>';
-  } else if (q.isPrecioFinal) {
-    return '<span class="iva-badge iva-precio-final">PRECIO FINAL</span>';
-  } else if (q.isGravado5) {
-    return `<span class="iva-badge iva-gravado">GRAVADO 5% (${formatMoney(q.ivaAmount)})</span>`;
-  } else {
-    return `<span class="iva-badge iva-gravado">GRAVADO ${q.ivaRate}% (${formatMoney(q.ivaAmount)})</span>`;
-  }
-}
-
 function buildRows(products = []) {
   return products
     .map((product, index) => {
       const productUrl = product.productUrl || '#';
-      const ivaBadge = getIvaBadge(product);
       const q = getCatalogNumbers(product);
+      const unitPriceDisplay = formatMoney(q.priceWithIva);
       
-      // Para PRECIO FINAL no mostrar desglose
-      const showBreakdown = !q.isPrecioFinal;
-      
+      // ✅ CORREGIDO: Usar imageBase64 si existe
+      let imageSrc = '';
+      if (product.imageBase64) {
+        imageSrc = product.imageBase64;
+      } else if (product.image) {
+        // Si no hay base64 pero hay URL, usarla
+        imageSrc = product.image;
+      }
+
       return `
         <tr class="product-row">
           <td class="col-item">${index + 1}<\/td>
@@ -154,27 +143,18 @@ function buildRows(products = []) {
                 <div class="product-meta">
                   SKU: ${escapeHtml(product.sku || "N/D")}
                 </div>
-                <div class="product-iva">
-                  ${ivaBadge}
-                </div>
-                ${showBreakdown ? `
-                  <div class="product-price-breakdown">
-                    <span class="price-without-iva">Sin IVA: ${escapeHtml(formatMoney(q.priceWithoutIva))}</span>
-                    <span class="price-with-iva">Con IVA: ${escapeHtml(formatMoney(q.priceWithIva))}</span>
-                  </div>
-                ` : ''}
               </div>
 
               <div class="product-image-box">
                 ${
-                  product.image
-                    ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name || "Producto")}" />`
+                  imageSrc
+                    ? `<img src="${escapeHtml(imageSrc)}" alt="${escapeHtml(product.name || "Producto")}" />`
                     : `<div class="image-empty">Sin imagen</div>`
                 }
               </div>
             </div>
           <\/td>
-          <td class="col-price">${escapeHtml(formatMoney(q.priceWithIva))}<\/td>
+          <td class="col-price">${escapeHtml(unitPriceDisplay)}<\/td>
         <\/tr>
       `;
     })
@@ -183,7 +163,7 @@ function buildRows(products = []) {
 
 function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
   const currency = quoteMeta.currency || "COP";
-  
+
   const dateValue =
     quoteMeta.date ||
     new Date().toLocaleDateString("es-CO", {
@@ -192,7 +172,6 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
       day: "2-digit",
     });
 
-  // TITULO FIJO EN EL PDF - SIEMPRE DICE "CATÁLOGO"
   const pdfTitle = "CATÁLOGO";
 
   return `
@@ -403,61 +382,7 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             color: #333;
             margin-bottom: 4px;
           }
-
-          .product-iva {
-            font-size: 12px;
-            font-weight: 700;
-            margin-top: 4px;
-            margin-bottom: 6px;
-          }
-
-          .product-price-breakdown {
-            font-size: 11px;
-            display: flex;
-            gap: 12px;
-            margin-top: 6px;
-            padding-top: 4px;
-            border-top: 1px dashed #e5e7eb;
-          }
-
-          .price-without-iva {
-            color: #6b7280;
-          }
-
-          .price-with-iva {
-            color: #8aa646;
-            font-weight: 600;
-          }
-
-          .iva-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-          }
-
-          .iva-excluido {
-            background: #2563eb;
-            color: white;
-          }
-
-          .iva-exento {
-            background: #16a34a;
-            color: white;
-          }
-
-          .iva-precio-final {
-            background: #6b7280;
-            color: white;
-          }
-
-          .iva-gravado {
-            background: #8aa646;
-            color: white;
-          }
-
+          
           .product-image-box {
             width: 170px;
             min-width: 170px;

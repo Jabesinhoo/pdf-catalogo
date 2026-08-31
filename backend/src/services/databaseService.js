@@ -3,7 +3,6 @@ const pool = require('../config/db');
 // Función auxiliar para mapear de snake_case a camelCase
 function mapDocument(row) {
   if (!row) return null;
-
   return {
     id: row.id,
     type: row.type,
@@ -24,17 +23,8 @@ const db = {
   async saveDocument(document) {
     const query = `
       INSERT INTO saved_documents (
-        id,
-        type,
-        title,
-        products,
-        quote_meta,
-        orientation,
-        product_count,
-        customer_name,
-        pdf_url,
-        user_id,
-        created_at
+        id, type, title, products, quote_meta, orientation,
+        product_count, customer_name, pdf_url, user_id, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `;
@@ -94,17 +84,10 @@ const db = {
       'SELECT * FROM saved_documents WHERE id = $1 AND user_id = $2',
       [id, userId]
     );
-
     return mapDocument(result.rows[0]);
   },
 
-  async searchDocuments({
-    searchTerm,
-    type,
-    sortBy = 'date',
-    userId,
-    limit = 100
-  }) {
+  async searchDocuments({ searchTerm, type, sortBy = 'date', userId, limit = 100 }) {
     let query = 'SELECT * FROM saved_documents WHERE user_id = $1';
     const values = [userId];
     let paramIndex = 2;
@@ -144,17 +127,12 @@ const db = {
       'DELETE FROM saved_documents WHERE id = $1 AND user_id = $2 RETURNING id',
       [id, userId]
     );
-
     return result.rows.length > 0;
   },
 
   async deleteAllDocuments(client = null) {
     const dbConn = client || pool;
-
-    const result = await dbConn.query(`
-      DELETE FROM saved_documents
-    `);
-
+    const result = await dbConn.query('DELETE FROM saved_documents');
     return result.rowCount;
   },
 
@@ -168,13 +146,11 @@ const db = {
       values.push(updates.title);
       paramIndex++;
     }
-
     if (updates.products) {
       fields.push(`products = $${paramIndex}`);
       values.push(JSON.stringify(updates.products));
       paramIndex++;
     }
-
     if (updates.pdfUrl) {
       fields.push(`pdf_url = $${paramIndex}`);
       values.push(updates.pdfUrl);
@@ -200,8 +176,7 @@ const db = {
     const result = await pool.query(
       'SELECT DISTINCT user_id FROM saved_documents ORDER BY user_id'
     );
-
-    return result.rows.map((row) => row.user_id);
+    return result.rows.map(row => row.user_id);
   },
 
   async close() {

@@ -1,6 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const puppeteer = require("puppeteer-core");
+const axios = require("axios"); // ✅ Agregado: necesario para convertir imágenes
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
+const execFileAsync = promisify(execFile);
 const { buildCatalogHtml } = require("../templates/catalogTemplate");
 const { buildQuoteHtml } = require("../templates/quoteTemplate");
 
@@ -17,18 +21,200 @@ let browserPromise = null;
 let activeJobs = 0;
 const waitQueue = [];
 
+// ✅ Cache para imágenes convertidas a base64
+const imageCache = new Map();
+
+// ✅ Resolver URL de imagen para generación de PDF
+function resolvePdfImageUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+
+  if (rawUrl.startsWith("data:") || rawUrl.startsWith("file://")) {
+    return rawUrl;
+  }
+
+  // Las imágenes mostradas en el frontend pasan por:
+  // /api/products/image?path=/wp-content/uploads/...
+  if (rawUrl.startsWith("/api/products/image")) {
+    try {
+      const proxyUrl = new URL(rawUrl, "http://localhost");
+      const imagePath = proxyUrl.searchParams.get("path") || "";
+
+      if (
+        !imagePath.startsWith("/wp-content/uploads/") ||
+        imagePath.includes("..") ||
+        imagePath.includes("\0")
+      ) {
+        return "";
+      }
+
+      return new URL(imagePath, "https://tecnonacho.com").toString();
+    } catch {
+      return "";
+    }
+  }
+
+  return rawUrl;
+}
+
+function getImageContentType(imageUrl) {
+  try {
+    const pathname = new URL(imageUrl).pathname.toLowerCase();
+
+    if (pathname.endsWith(".png")) return "image/png";
+    if (pathname.endsWith(".jpg") || pathname.endsWith(".jpeg")) return "image/jpeg";
+    if (pathname.endsWith(".webp")) return "image/webp";
+    if (pathname.endsWith(".gif")) return "image/gif";
+    if (pathname.endsWith(".avif")) return "image/avif";
+    if (pathname.endsWith(".svg")) return "image/svg+xml";
+  } catch {}
+
+  return "image/jpeg";
+}
+
+// ✅ Función para convertir URL de imagen a base64
+async function urlToBase64(rawImageUrl) {
+  if (!rawImageUrl) return "";
+
+  const imageUrl = resolvePdfImageUrl(rawImageUrl);
+
+  if (!imageUrl) return "";
+  if (imageUrl.startsWith("data:")) return imageUrl;
+  if (imageUrl.startsWith("file://")) return imageUrl;
+
+  // URLs relativas distintas del proxy no son válidas para el PDF
+  if (imageUrl.startsWith("/")) {
+    console.warn("⚠️ URL relativa no soportada en PDF:", imageUrl);
+    return "";
+  }
+
+  if (imageCache.has(imageUrl)) {
+    console.log(`✅ Usando caché para: ${imageUrl.substring(0, 50)}...`);
+    return imageCache.get(imageUrl);
+  }
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log(
+        `📥 Convirtiendo a base64 (intento ${attempt}): ${imageUrl.substring(0, 80)}...`
+      );
+
+      const parsed = new URL(imageUrl);
+
+      let imageBuffer;
+      let contentType;
+
+      // TecnoNacho: saltar Hostinger CDN / Under Attack
+      if (parsed.hostname === "tecnonacho.com") {
+        const { stdout } = await execFileAsync(
+          "curl",
+          [
+            "-4",
+            "--http1.1",
+            "--resolve",
+            "tecnonacho.com:443:147.79.93.157",
+            "--location",
+            "--silent",
+            "--show-error",
+            "--fail",
+            "--max-time",
+            "20",
+            "--user-agent",
+            "TecnoCotizador-PDF/1.0",
+            imageUrl,
+          ],
+          {
+            timeout: 25000,
+            maxBuffer: 30 * 1024 * 1024,
+            encoding: null,
+          }
+        );
+
+        imageBuffer = Buffer.from(stdout);
+        contentType = getImageContentType(imageUrl);
+      } else {
+        // Imágenes externas siguen usando Axios normalmente
+        const response = await axios.get(imageUrl, {
+          responseType: "arraybuffer",
+          timeout: 10000,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+            "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
+          },
+        });
+
+        imageBuffer = Buffer.from(response.data);
+        contentType = response.headers["content-type"] || getImageContentType(imageUrl);
+      }
+
+      const base64 = imageBuffer.toString("base64");
+      const dataUri = `data:${contentType};base64,${base64}`;
+
+      imageCache.set(imageUrl, dataUri);
+      setTimeout(() => imageCache.delete(imageUrl), 3600000);
+
+      console.log(
+        `✅ Imagen convertida: ${imageUrl.substring(0, 50)}... (${Math.round(
+          imageBuffer.length / 1024
+        )} KB)`
+      );
+
+      return dataUri;
+    } catch (error) {
+      console.error(
+        `❌ Error convirtiendo imagen (intento ${attempt}): ${imageUrl}`,
+        error.message
+      );
+
+      if (attempt === 2) {
+        return "";
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1000 * attempt)
+      );
+    }
+  }
+
+  return "";
+}
+
+// ✅ Función para procesar imágenes de productos
+async function processProductImages(products) {
+  if (!products || products.length === 0) return products;
+  
+  const processedProducts = [];
+  
+  for (const product of products) {
+    const processed = { ...product };
+    
+    // Procesar imagen del producto si existe (verificar diferentes nombres de campo)
+    const imageUrl = product.imageUrl || product.image || product.imagen || product.productImage;
+    if (imageUrl && typeof imageUrl === 'string' && !imageUrl.startsWith('data:')) {
+      processed.imageBase64 = await urlToBase64(imageUrl);
+      // Mantener la URL original por si acaso
+      processed.originalImageUrl = imageUrl;
+    } else if (imageUrl && imageUrl.startsWith('data:')) {
+      processed.imageBase64 = imageUrl;
+    }
+    
+    processedProducts.push(processed);
+  }
+  
+  return processedProducts;
+}
+
 function getBrowserPath() {
   const envPath = process.env.BROWSER_PATH;
 
   const possiblePaths = [
     envPath,
-
     "/usr/bin/chromium-browser",
     "/usr/bin/chromium",
     "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
     "/snap/bin/chromium",
-
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
@@ -222,6 +408,18 @@ async function buildCatalogPdf({
     console.log("📄 Tipo documento:", documentType);
     console.log("📦 Productos:", products.length);
 
+    // ✅ PROCESAR IMÁGENES DE PRODUCTOS ANTES DE GENERAR HTML
+    let processedProducts = products;
+    if (products && products.length > 0) {
+      // Verificar si hay imágenes para procesar
+      const hasImages = products.some(p => p.imageUrl || p.image || p.imagen);
+      if (hasImages) {
+        console.log("🖼️ Procesando imágenes de productos a base64...");
+        processedProducts = await processProductImages(products);
+        console.log("✅ Imágenes procesadas");
+      }
+    }
+
     page = await browser.newPage();
 
     page.setDefaultNavigationTimeout(PAGE_TIMEOUT);
@@ -231,38 +429,66 @@ async function buildCatalogPdf({
     await page.setUserAgent(
       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     );
-
     await page.setExtraHTTPHeaders({
       "Accept-Language": "es-CO,es;q=0.9,en;q=0.8",
     });
-
     await page.emulateMediaType("screen");
 
+    // ✅ MEJORAR EVENTOS PARA CAPTURAR ERRORES 429
     page.on("console", (msg) => {
-      console.log("🖥️ PAGE LOG:", msg.type(), msg.text());
+      const text = msg.text();
+      console.log("🖥️ PAGE LOG:", msg.type(), text);
+      
+      // Si es error y contiene 429, mostrar más detalles
+      if (msg.type() === 'error' && text.includes('429')) {
+        console.error("🚨 ERROR 429 DETECTADO en consola:", text);
+      }
     });
 
     page.on("pageerror", (err) => {
-      console.error("❌ PAGE ERROR:", err);
+      console.error("❌ PAGE ERROR:", err.message);
     });
 
     page.on("requestfailed", (request) => {
-      console.error(
-        "❌ REQUEST FAILED:",
-        request.url(),
-        request.failure()?.errorText || "Sin detalle"
-      );
+      const url = request.url();
+      const failure = request.failure()?.errorText || "Sin detalle";
+      console.error(`❌ REQUEST FAILED [${request.resourceType()}]: ${url} - ${failure}`);
+      
+      // Especial atención a imágenes
+      if (request.resourceType() === 'image') {
+        console.error(`🖼️ IMAGEN FALLIDA: ${url}`);
+      }
     });
 
+    // ✅ NUEVO: Capturar respuestas con status 429
+    page.on("response", async (response) => {
+      const status = response.status();
+      const url = response.url();
+      const resourceType = response.request().resourceType();
+      
+      if (status === 429) {
+        console.error(`🚫 RATELIMIT 429 [${resourceType}]: ${url}`);
+        
+        // Intentar leer el cuerpo de la respuesta para más detalles
+        try {
+          const text = await response.text();
+          console.error(`   Respuesta: ${text.substring(0, 200)}`);
+        } catch (e) {
+          // No se pudo leer el cuerpo
+        }
+      }
+    });
+
+    // ✅ Usar productos procesados (con imágenes en base64)
     const html =
       documentType === "quote"
         ? buildQuoteHtml({
-            products,
+            products: processedProducts,  // Usar productos con imágenes convertidas
             quoteMeta,
             logoSrc,
           })
         : buildCatalogHtml({
-            products,
+            products: processedProducts,  // Usar productos con imágenes convertidas
             orientation,
             quoteMeta,
             sourceUrl,

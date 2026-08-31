@@ -6,23 +6,30 @@ function escapeHtml(text = "") {
     .replace(/"/g, "&quot;")
     .replace(/&#8211;/g, "-");
 }
-function fixImageUrl(url) {
+
+function fixImageUrl(url, product = null) {
   if (!url) return '';
   
+  // ✅ PRIORIDAD: Usar base64 si está disponible
+  if (product && product.imageBase64) {
+    return product.imageBase64;
+  }
+
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  
-  if (url.startsWith('/')) {
-    return `https://tecnonacho.com${url}`;
-  }
-  
+
   if (url.startsWith('data:image')) {
     return url;
   }
-  
+
+  if (url.startsWith('/')) {
+    return `https://tecnonacho.com${url}`;
+  }
+
   return `https://tecnonacho.com/wp-content/uploads/${url}`;
 }
+
 function parseMoney(value) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (!value) return 0;
@@ -187,14 +194,13 @@ function buildRows(products, currency, orientation, options = {}) {
       ivaDetail = 'IVA 19%: ' + escapeHtml(formatMoney(q.ivaAmount, currency));
     }
 
-    // Si el check está activo, no se muestra discriminación de IVA en cada producto.
-    // El precio unitario entra tal cual como precio con IVA incluido y la discriminación queda solo en totales.
     if (hideLineIvaBreakdown) {
       unitPriceDisplay = formatMoney(q.priceWithIva, currency);
       unitPriceLabel = '';
     }
 
-    const fixedImage = fixImageUrl(product.image || '');
+    // ✅ CORREGIDO: Usar imageBase64 si existe
+    const fixedImage = fixImageUrl(product.image || '', product);
 
     return `
       <tr class="product-row">
@@ -211,12 +217,10 @@ function buildRows(products, currency, orientation, options = {}) {
               <div class="product-meta">
                 SKU: ${escapeHtml(product.sku || "N/D")}
               </div>
-              ${hideLineIvaBreakdown ? '' : `
-                <div class="product-iva">
-                  ${ivaDisplay}
-                  <span class="iva-detail">${ivaDetail}</span>
-                </div>
-              `}
+              <div class="product-iva">
+                ${ivaDisplay}
+                ${hideLineIvaBreakdown ? '' : `<span class="iva-detail">${ivaDetail}</span>`}
+              </div>
             </div>
             ${fixedImage ? `
               <div class="product-image-box ${orientation === 'landscape' ? 'landscape' : ''}">
@@ -227,7 +231,6 @@ function buildRows(products, currency, orientation, options = {}) {
         </td>
         <td class="col-unit">
           <div class="unit-value">${escapeHtml(unitPriceDisplay)}</div>
-          ${unitPriceLabel ? `<div class="unit-label">${escapeHtml(unitPriceLabel)}</div>` : ''}
         </td>
         <td class="col-total">
           <div class="total-value-cell">${escapeHtml(formatMoney(q.total, currency))}</div>
@@ -274,13 +277,13 @@ function buildGallery(products) {
 function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientation = "portrait" }) {
   const currency = quoteMeta.currency || "COP";
 
-  const { 
-    rows, 
-    subtotalGravado, 
-    subtotalExento, 
-    subtotalExcluido, 
+  const {
+    rows,
+    subtotalGravado,
+    subtotalExento,
+    subtotalExcluido,
     subtotalPrecioFinal,
-    ivaTotal, 
+    ivaTotal,
     subtotalGeneral,
     totalGeneral,
     valorAPagar
@@ -296,13 +299,11 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
       day: "2-digit",
     });
 
-  // TITULO FIJO EN EL PDF - SIEMPRE DICE "COTIZACION"
   const pdfTitle = "COTIZACION";
-
   const pageClass = orientation === 'landscape' ? 'page landscape' : 'page';
   const containerClass = orientation === 'landscape' ? 'container landscape' : 'container';
   const paymentNote = quoteMeta.paymentNote || "ESTE PRECIO ES SOLO PARA PAGOS EN EFECTIVO O TRANSFERENCIA";
-  
+
   return `
     <!doctype html>
     <html lang="es">
@@ -505,18 +506,11 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             line-height: 1.3;
             color: #1e1e1e;
             text-decoration: none;
-            word-break: break-word; 
+            word-break: break-word;
           }
 
           .product-link:hover {
             color: #8aa646;
-          }
-
-          .product-link::after {
-            content: ' ';
-            font-size: 0.7em;
-            opacity: 0.4;
-            margin-left: 4px;
           }
 
           .product-desc {
@@ -539,43 +533,6 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             color: #8aa646;
             margin-top: 2px;
           }
-
-          .iva-excluido {
-            color: #2563eb;
-            font-weight: 600;
-            background: rgba(37, 99, 235, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
-          }
-
-          .iva-exento {
-            color: #16a34a;
-            font-weight: 600;
-            background: rgba(22, 163, 74, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
-          }
-
-          .iva-precio-final {
-            color: #6b7280;
-            font-weight: 600;
-            background: rgba(107, 114, 128, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            display: inline-block;
-            font-size: ${orientation === 'landscape' ? '9px' : '11px'};
-          }
-
-          .iva-gravado {
-            color: #8aa646;
-            font-weight: 600;
-          }
-
-
 
           .iva-badge {
             display: inline-block;
@@ -799,13 +756,13 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             .totals-detailed {
               width: 100%;
             }
-            
+
             .product-image-box {
               width: 80px;
               min-width: 80px;
               height: 70px;
             }
-            
+
             .gallery-item {
               width: 50px;
               height: 50px;

@@ -31,7 +31,6 @@ pool.on("error", (err) => {
   console.error("❌ Error PostgreSQL:", err.message);
 });
 
-module.exports = {
-  pool,
-  verifyDbOnce,
-};
+pool.verifyDbOnce = verifyDbOnce;
+
+module.exports = pool;

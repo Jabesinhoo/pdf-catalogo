@@ -1,78 +1,59 @@
 const rateLimit = require('express-rate-limit');
 
-// Función auxiliar para generar clave con IP + usuario
-const keyGenerator = (req) => {
-  // Usar la función incorporada para manejar IPv6 correctamente
-  const ip = rateLimit.ipKeyGenerator(req);
-  const userId = req.user?.id || req.user?.username;
-  return userId ? `${ip}:${userId}` : ip;
-};
-
+/*
+ * Login:
+ * Protección estricta contra fuerza bruta.
+ * Los logins exitosos no consumen cuota.
+ */
 const loginLimiter = rateLimit({
-  windowMs: 10 * 1000, 
-  max: 10, 
+  windowMs: 10 * 1000,
+  limit: 10,
   message: {
     success: false,
     message: 'Demasiados intentos de login. Intenta en 10 segundos.'
   },
-  standardHeaders: true,
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  keyGenerator: keyGenerator, // Usar la función que maneja IPv6
 });
 
+/*
+ * API general:
+ * TecnoCotizador es utilizado simultáneamente por múltiples asesores,
+ * que incluso pueden compartir una misma IP pública.
+ *
+ * 6000 solicitudes / 15 minutos permite concurrencia normal
+ * sin dejar la API completamente sin protección.
+ */
 const apiLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 300,
+  windowMs: 15 * 60 * 1000,
+  limit: 6000,
   message: {
     success: false,
-    message: 'Demasiadas peticiones. Intenta más tarde.'
+    message: 'Demasiadas peticiones. Intenta nuevamente en unos segundos.'
   },
-  standardHeaders: true,
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: keyGenerator,
 });
 
-const categoriesLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 500,
-  message: {
-    success: false,
-    message: 'Demasiadas peticiones de categorías. Intenta más tarde.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: keyGenerator,
-});
-
-const searchLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 200,
-  message: {
-    success: false,
-    message: 'Demasiadas búsquedas. Por favor espera un momento.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: keyGenerator,
-});
-
+/*
+ * Generación de documentos:
+ * Separado del límite general porque generar documentos sí consume
+ * más recursos que consultar productos o categorías.
+ */
 const documentLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: 100,
+  limit: 500,
   message: {
     success: false,
-    message: 'Has alcanzado el límite de documentos por hora.'
+    message: 'Has alcanzado el límite temporal de generación de documentos.'
   },
-  standardHeaders: true,
+  standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: keyGenerator,
 });
 
 module.exports = {
   loginLimiter,
   apiLimiter,
-  categoriesLimiter,
-  searchLimiter,
   documentLimiter
 };

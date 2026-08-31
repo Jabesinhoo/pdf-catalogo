@@ -10,13 +10,14 @@ const session = require("express-session");
 const helmet = require("helmet");
 
 const sessionConfig = require("./config/session");
-const { pool, verifyDbOnce } = require("./config/db");
-
+const pool = require("./config/db");
+const { verifyDbOnce } = pool;
 const productRoutes = require("./routes/productRoutes");
 const pdfRoutes = require("./routes/pdfRoutes");
 const documentRoutes = require("./routes/documentRoutes");
 const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const cacheRoutes = require("./routes/cacheRoutes");
 const statsRoutes = require("./routes/statsRoutes");
 
 const { requireAuth } = require("./controllers/authController");
@@ -61,9 +62,9 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-app.use("/api/auth", authRoutes);
 
 app.use("/api/auth/login", loginLimiter);
+app.use("/api/auth", authRoutes);
 app.use("/api/", apiLimiter);
 app.use("/api/documents", documentLimiter);
 app.use("/api/pdf/generate", documentLimiter);
@@ -73,7 +74,7 @@ app.use("/api/pdf", requireAuth, pdfRoutes);
 app.use("/api/documents", requireAuth, documentRoutes);
 app.use("/api/admin", adminRoutes);
 
-
+app.use("/api/cache", cacheRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/flipbooks", express.static(path.join(__dirname, "public/flipbooks")));
 
