@@ -274,9 +274,17 @@ jobs:
               exit 1
             fi
 
-            pm2 start "$RELEASE_DIR/backend/src/app.js" \
+            if ! NODE_ENV=production pm2 start "$RELEASE_DIR/backend/src/app.js" \
               --name "$PROCESS_NAME" \
-              --cwd "$RELEASE_DIR/backend"
+              --cwd "$RELEASE_DIR/backend"; then
+
+              echo "❌ PM2 no pudo arrancar el backend nuevo"
+
+              rollback_backend
+              rm -rf "$RELEASE_DIR"
+
+              exit 1
+            fi
 
             # --------------------------------------------------
             # HEALTH CHECK
@@ -348,13 +356,32 @@ jobs:
 
             echo "🔍 Verificación final..."
 
-            test "$(readlink -f "$CURRENT_DIR")" = "$RELEASE_DIR"
+            FINAL_OK=1
 
-            curl \
+            if [ "$(readlink -f "$CURRENT_DIR")" != "$RELEASE_DIR" ]; then
+              echo "❌ current no apunta al release esperado"
+              FINAL_OK=0
+            fi
+
+            if ! curl \
               -fsS \
               --max-time 5 \
               "http://127.0.0.1:${APP_PORT}/api/health" \
-              >/dev/null
+              >/dev/null 2>&1; then
+
+              echo "❌ Falló el health check final"
+              FINAL_OK=0
+            fi
+
+            if [ "$FINAL_OK" -ne 1 ]; then
+              echo "↩️ Revirtiendo deploy..."
+
+              rollback_symlinks
+              rollback_backend
+              rm -rf "$RELEASE_DIR"
+
+              exit 1
+            fi
 
             pm2 save
 
