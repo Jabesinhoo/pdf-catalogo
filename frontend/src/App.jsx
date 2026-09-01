@@ -93,9 +93,37 @@ function normalizeProduct(product = {}) {
 const QUOTE_META_STORAGE_KEY = "tecnocotizador_quote_meta_v2";
 const PRODUCT_DRAFT_STORAGE_KEY = "tecnocotizador_products_draft_v1";
 
+const ISSUERS = {
+  tecnonacho: {
+    companyName: "TECNONACHO S.A.S",
+    nit: "901.067.698-7",
+  },
+  poweron: {
+    companyName: "TECNONACHO POWER ON",
+    nit: "901.937.565",
+  },
+};
+
+function normalizeQuoteMetaIssuer(meta = {}) {
+  const normalizedNit = String(meta.nit || "").replace(/\D/g, "");
+
+  const issuer =
+    meta.issuer === "poweron" || normalizedNit === "901937565"
+      ? "poweron"
+      : "tecnonacho";
+
+  return {
+    ...meta,
+    issuer,
+    companyName: ISSUERS[issuer].companyName,
+    nit: ISSUERS[issuer].nit,
+  };
+}
+
 const DEFAULT_QUOTE_META = {
-  companyName: "TECNONACHO S.A.S",
-  nit: "901.067.698-7",
+  issuer: "tecnonacho",
+  companyName: ISSUERS.tecnonacho.companyName,
+  nit: ISSUERS.tecnonacho.nit,
   date: new Date().toISOString().slice(0, 10),
   customerName: "",
   currency: "COP",
@@ -116,12 +144,12 @@ function getInitialQuoteMeta() {
     if (!saved) return DEFAULT_QUOTE_META;
 
     const parsed = JSON.parse(saved);
-    return {
+    return normalizeQuoteMetaIssuer({
       ...DEFAULT_QUOTE_META,
       ...parsed,
       date: parsed?.date || DEFAULT_QUOTE_META.date,
       hideLineIvaBreakdown: Boolean(parsed?.hideLineIvaBreakdown),
-    };
+    });
   } catch {
     return DEFAULT_QUOTE_META;
   }
@@ -853,6 +881,18 @@ function App() {
   }
 
   function handleQuoteMetaChange(field, value) {
+    if (field === "issuer") {
+      const issuer = ISSUERS[value] ? value : "tecnonacho";
+
+      setQuoteMeta((prev) => ({
+        ...prev,
+        issuer,
+        companyName: ISSUERS[issuer].companyName,
+        nit: ISSUERS[issuer].nit,
+      }));
+      return;
+    }
+
     setQuoteMeta((prev) => ({
       ...prev,
       [field]: field === "hideLineIvaBreakdown" ? Boolean(value) : value,
@@ -924,11 +964,11 @@ function App() {
       }
 
       const today = new Date().toISOString().slice(0, 10);
-      const currentQuoteMeta = {
+      const currentQuoteMeta = normalizeQuoteMetaIssuer({
         ...quoteMeta,
         date: today,
         hideLineIvaBreakdown: Boolean(quoteMeta.hideLineIvaBreakdown),
-      };
+      });
 
       setQuoteMeta(currentQuoteMeta);
 
@@ -1056,14 +1096,14 @@ function App() {
       setProducts(loadedProducts);
 
       const today = new Date().toISOString().slice(0, 10);
-      const updatedQuoteMeta = {
+      const updatedQuoteMeta = normalizeQuoteMetaIssuer({
         ...(doc.quoteMeta || quoteMeta),
         date: today,
         customerName: doc.customerName || doc.quoteMeta?.customerName || "",
         quoteNumber: doc.quoteMeta?.quoteNumber || "",
         documentTitle: doc.title || doc.quoteMeta?.documentTitle || (doc.type === "quote" ? "COTIZACION" : "CATALOGO"),
         hideLineIvaBreakdown: Boolean(doc.quoteMeta?.hideLineIvaBreakdown ?? quoteMeta.hideLineIvaBreakdown),
-      };
+      });
 
       setQuoteMeta(updatedQuoteMeta);
       setOrientation(doc.orientation || "portrait");

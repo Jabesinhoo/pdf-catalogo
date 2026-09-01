@@ -238,23 +238,53 @@ function getBrowserPath() {
   return found;
 }
 
-function getLogoDataUri() {
+function getLogoDataUri(quoteMeta = {}) {
+  const issuer = String(quoteMeta.issuer || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedNit = String(
+    quoteMeta.nit || ""
+  ).replace(/\D/g, "");
+
+  const isPowerOn =
+    issuer === "poweron" ||
+    normalizedNit === "901937565";
+
+  const logoFileName = isPowerOn
+    ? "logo3.jpeg"
+    : "logo.png";
+
   const logoPath = path.resolve(
     process.cwd(),
     "..",
     "frontend",
     "src",
     "assets",
-    "logo.png"
+    logoFileName
   );
 
   if (!fs.existsSync(logoPath)) {
-    console.warn("⚠️ Logo no encontrado en:", logoPath);
+    console.warn(
+      "⚠️ Logo no encontrado en:",
+      logoPath
+    );
     return "";
   }
 
+  const extension = path
+    .extname(logoPath)
+    .toLowerCase();
+
+  const mimeType =
+    extension === ".jpg" ||
+    extension === ".jpeg"
+      ? "image/jpeg"
+      : "image/png";
+
   const fileBuffer = fs.readFileSync(logoPath);
-  return `data:image/png;base64,${fileBuffer.toString("base64")}`;
+
+  return `data:${mimeType};base64,${fileBuffer.toString("base64")}`;
 }
 
 function sleep(ms) {
@@ -403,7 +433,7 @@ async function buildCatalogPdf({
 
   try {
     const browser = await getBrowser();
-    const logoSrc = getLogoDataUri();
+    const logoSrc = getLogoDataUri(quoteMeta);
 
     console.log("📄 Tipo documento:", documentType);
     console.log("📦 Productos:", products.length);

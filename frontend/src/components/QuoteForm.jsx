@@ -26,6 +26,7 @@ function QuoteForm({
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const data = value ?? quoteMeta ?? {
+    issuer: "tecnonacho",
     companyName: "TECNONACHO S.A.S",
     nit: "901.067.698-7",
     date: new Date().toISOString().slice(0, 10),
@@ -86,16 +87,18 @@ function QuoteForm({
             
             {/* ========== CAMPOS COMUNES (aparecen en ambos) ========== */}
             
-            {/* Empresa */}
+            {/* Empresa / razón social */}
             <div className="quoteForm__field">
               <label>
+                <Briefcase size={14} />
                 <span>Empresa</span>
-                <input
-                  type="text"
-                  value={data.companyName || ""}
-                  readOnly
-                  className="input-readonly"
-                />
+                <select
+                  value={data.issuer || "tecnonacho"}
+                  onChange={(e) => handleChange("issuer", e.target.value)}
+                >
+                  <option value="tecnonacho">Tecnonacho</option>
+                  <option value="poweron">Tecnonacho Power ON</option>
+                </select>
               </label>
             </div>
 

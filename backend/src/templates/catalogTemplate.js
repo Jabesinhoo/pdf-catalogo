@@ -65,6 +65,16 @@ function formatMoney(value, currency = "COP") {
   }
 }
 
+function formatPowerOnNit(nit = "") {
+  const digits = String(nit).replace(/\D/g, "");
+
+  if (digits === "901937565") {
+    return "901.937.565";
+  }
+
+  return String(nit || "");
+}
+
 function getCatalogNumbers(product) {
   let finalPrice = parseMoney(product.price);
   if (product.priceAdjustOp && product.priceAdjustValue) {
@@ -163,6 +173,35 @@ function buildRows(products = []) {
 
 function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
   const currency = quoteMeta.currency || "COP";
+  const companyName =
+    quoteMeta.companyName ||
+    "TECNONACHO S.A.S";
+
+  const nit =
+    quoteMeta.nit ||
+    "901.067.698-7";
+
+  const issuer = String(
+    quoteMeta.issuer || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const normalizedNit =
+    String(nit)
+      .replace(/\D/g, "");
+
+  const isPowerOn =
+    issuer === "poweron" ||
+    normalizedNit === "901937565" ||
+    String(companyName)
+      .toLowerCase()
+      .includes("power on");
+
+  const displayNit =
+    isPowerOn
+      ? formatPowerOnNit(nit)
+      : nit;
 
   const dateValue =
     quoteMeta.date ||
@@ -179,7 +218,7 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
     <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>Catálogo Tecnonacho</title>
+        <title>Catálogo ${escapeHtml(companyName)}</title>
         <style>
           * {
             box-sizing: border-box;
@@ -235,6 +274,17 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
             max-width: 240px;
             object-fit: contain;
             display: block;
+          }
+
+          .logo-box img.poweron-logo {
+            max-height: 100px;
+            max-width: 380px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            transform: scale(1.22);
+            transform-origin: left center;
           }
 
           .company-info {
@@ -441,11 +491,11 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
 
           <div class="brand-row">
             <div class="logo-box">
-              ${logoSrc ? `<img src="${logoSrc}" alt="Tecnonacho" />` : ``}
+              ${logoSrc ? `<img class="${isPowerOn ? "poweron-logo" : ""}" src="${logoSrc}" alt="${escapeHtml(companyName)}" />` : ``}
             </div>
             <div class="company-info">
-              <h1>${escapeHtml(quoteMeta.companyName || "TECNONACHO S.A.S")}</h1>
-              <p><strong>NIT:</strong> ${escapeHtml(quoteMeta.nit || "901.067.698-7")}</p>
+              <h1>${escapeHtml(companyName)}</h1>
+              <p><strong>NIT:</strong> ${escapeHtml(displayNit)}</p>
             </div>
           </div>
 

@@ -9,7 +9,7 @@ function escapeHtml(text = "") {
 
 function fixImageUrl(url, product = null) {
   if (!url) return '';
-  
+
   // ✅ PRIORIDAD: Usar base64 si está disponible
   if (product && product.imageBase64) {
     return product.imageBase64;
@@ -87,6 +87,16 @@ function formatMoney(value, currency = "COP") {
       maximumFractionDigits: 0,
     }).format(amount);
   }
+}
+
+function formatPowerOnNit(nit = "") {
+  const digits = String(nit).replace(/\D/g, "");
+
+  if (digits === "901937565") {
+    return "901.937.565";
+  }
+
+  return String(nit || "");
 }
 
 function getQuoteNumbers(product) {
@@ -276,6 +286,27 @@ function buildGallery(products) {
 
 function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientation = "portrait" }) {
   const currency = quoteMeta.currency || "COP";
+  const companyName = quoteMeta.companyName || "TECNONACHO S.A.S";
+  const nit = quoteMeta.nit || "901.067.698-7";
+
+  const issuer = String(quoteMeta.issuer || "")
+    .trim()
+    .toLowerCase();
+
+  const normalizedNit = String(nit)
+    .replace(/\D/g, "");
+
+  const isPowerOn =
+    issuer === "poweron" ||
+    normalizedNit === "901937565" ||
+    String(companyName)
+      .toLowerCase()
+      .includes("power on");
+
+  const displayNit =
+    isPowerOn
+      ? formatPowerOnNit(nit)
+      : nit;
 
   const {
     rows,
@@ -309,7 +340,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
     <html lang="es">
       <head>
         <meta charset="utf-8" />
-        <title>Cotización Tecnonacho</title>
+        <title>Cotización ${escapeHtml(companyName)}</title>
         <style>
           * {
             box-sizing: border-box;
@@ -374,6 +405,16 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             max-width: ${orientation === 'landscape' ? '160px' : '240px'};
             object-fit: contain;
           }
+
+          .logo-box img.poweron-logo {
+  max-height: ${orientation === 'landscape' ? '40px' : '58px'};
+  max-width: ${orientation === 'landscape' ? '160px' : '240px'};
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transform: none;
+}
 
           .doc-title {
             font-size: ${orientation === 'landscape' ? '20px' : '24px'};
@@ -779,8 +820,14 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             </div>
 
             <div class="brand-row">
-              <div class="logo-box">
-                ${logoSrc ? `<img src="${logoSrc}" alt="Tecnonacho" />` : ''}
+              <div class="logo-box" style="flex-direction: column; align-items: flex-start; gap: 3px;">
+                ${logoSrc ? `<img class="${isPowerOn ? "poweron-logo" : ""}" src="${logoSrc}" alt="${escapeHtml(companyName)}" />` : ''}
+                <div style="font-size: 11px; font-weight: 800; color: #1e1e1e; line-height: 1.2;">
+                  ${escapeHtml(companyName)}
+                </div>
+                <div style="font-size: 10px; font-weight: 600; color: #6b7280; line-height: 1.2;">
+                  NIT: ${escapeHtml(displayNit)}
+                </div>
               </div>
               <div class="doc-title">${escapeHtml(pdfTitle)}</div>
             </div>
@@ -879,7 +926,7 @@ function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientati
             <div class="notes">
               <p>* Disponibilidad sujeta a rotacion de inventario</p>
               <p>* Cotizacion sujeta a analisis y aprobacion</p>
-              <p>* Tecno Nacho S.A.S. no es responsable de configuraciones finales</p>
+              <p>* ${escapeHtml(companyName)} no es responsable de configuraciones finales</p>
               <p>* No hay devoluciones en licenciamiento</p>
               <p>* Facturadores electronicos</p>
               <p>* Valores NO incluyen transporte</p>
