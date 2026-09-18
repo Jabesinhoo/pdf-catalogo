@@ -1,16 +1,24 @@
-import { 
-  FileText, 
-  Plus, 
-  RefreshCw, 
-  Trash2, 
-  BookOpen, 
-  CheckSquare, 
+import {
+  FileText,
+  Plus,
+  RefreshCw,
+  Trash2,
+  BookOpen,
+  CheckSquare,
   Square,
   Search,
   Calculator,
-  X
+  X,
 } from "lucide-react";
+
 import SortControls from "./SortControls";
+
+const copFormatter = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
 
 function ResultsToolbar({
   count = 0,
@@ -35,8 +43,18 @@ function ResultsToolbar({
   sortBy = "name",
   sortOrder = "asc",
   onSortChange,
+
+  // NUEVO
+  quoteTotal = 0,
 }) {
-  const safeLocalFilter = typeof localFilter === "string" ? localFilter : String(localFilter || "");
+  const safeLocalFilter =
+    typeof localFilter === "string"
+      ? localFilter
+      : String(localFilter || "");
+
+  const safeQuoteTotal = Number.isFinite(Number(quoteTotal))
+    ? Number(quoteTotal)
+    : 0;
 
   const handleFilterChange = (e) => {
     setLocalFilter(String(e?.target?.value ?? ""));
@@ -52,7 +70,14 @@ function ResultsToolbar({
         <div className="results-info">
           <strong>{selectedCount}</strong> seleccionados de{" "}
           <strong>{totalCount}</strong>
-          {count !== totalCount ? <> · visibles: <strong>{count}</strong></> : null}
+
+          {count !== totalCount ? (
+            <>
+              {" "}
+              · visibles: <strong>{count}</strong>
+            </>
+          ) : null}
+
           {batchSelectedCount > 0 && (
             <span className="batch-badge">
               <Trash2 size={12} />
@@ -61,16 +86,35 @@ function ResultsToolbar({
           )}
         </div>
 
+        {/* TOTAL DE LA COTIZACIÓN EN TIEMPO REAL */}
+        {documentType === "quote" && (
+          <div className="quote-total-toolbar">
+            <div className="quote-total-toolbar-icon">
+              <Calculator size={17} />
+            </div>
+
+            <div className="quote-total-toolbar-content">
+              <span>Total cotización</span>
+
+              <strong>{copFormatter.format(safeQuoteTotal)}</strong>
+            </div>
+          </div>
+        )}
+
         <div className="toolbar-actions">
-          <button className="secondaryBtn smallBtn" onClick={onAddManual} type="button">
+          <button
+            className="secondaryBtn smallBtn"
+            onClick={onAddManual}
+            type="button"
+          >
             <Plus size={14} />
             <span>Crear producto</span>
           </button>
 
           {documentType === "quote" && (
-            <button 
-              className="secondaryBtn smallBtn" 
-              onClick={onNewQuote} 
+            <button
+              className="secondaryBtn smallBtn"
+              onClick={onNewQuote}
               type="button"
               title="Empezar una nueva cotización desde cero"
             >
@@ -80,9 +124,9 @@ function ResultsToolbar({
           )}
 
           {documentType === "catalog" && (
-            <button 
-              className="secondaryBtn smallBtn" 
-              onClick={onNewCatalog} 
+            <button
+              className="secondaryBtn smallBtn"
+              onClick={onNewCatalog}
               type="button"
               title="Empezar un nuevo catálogo desde cero"
             >
@@ -90,13 +134,15 @@ function ResultsToolbar({
               <span>Nuevo catálogo</span>
             </button>
           )}
-          
+
           <button
             className="secondaryBtn smallBtn"
             onClick={allSelected ? onDeselectAll : onSelectAll}
             type="button"
           >
-            {allSelected ? "Deseleccionar todos (PDF)" : "Seleccionar todos (PDF)"}
+            {allSelected
+              ? "Deseleccionar todos (PDF)"
+              : "Seleccionar todos (PDF)"}
           </button>
         </div>
       </div>
@@ -119,6 +165,7 @@ function ResultsToolbar({
           >
             <CheckSquare size={16} />
           </button>
+
           <button
             className="iconBtn small"
             onClick={onDeselectAllForBatch}
@@ -127,21 +174,27 @@ function ResultsToolbar({
           >
             <Square size={16} />
           </button>
+
           {batchSelectedCount > 0 && (
             <>
               <button
                 className="iconBtn small price-adjust-btn"
                 onClick={onOpenMassPriceAdjust}
                 type="button"
-                title={`Ajustar precio de ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
+                title={`Ajustar precio de ${batchSelectedCount} producto${
+                  batchSelectedCount !== 1 ? "s" : ""
+                }`}
               >
                 <Calculator size={16} />
               </button>
+
               <button
                 className="iconBtn small dangerBtn"
                 onClick={onDeleteBatch}
                 type="button"
-                title={`Eliminar ${batchSelectedCount} producto${batchSelectedCount !== 1 ? 's' : ''}`}
+                title={`Eliminar ${batchSelectedCount} producto${
+                  batchSelectedCount !== 1 ? "s" : ""
+                }`}
               >
                 <Trash2 size={16} />
               </button>
@@ -156,12 +209,20 @@ function ResultsToolbar({
           type="button"
         >
           <FileText size={14} />
-          <span>{generating ? "Generando..." : documentType === "quote" ? "Generar cotización" : "Generar catálogo"}</span>
+
+          <span>
+            {generating
+              ? "Generando..."
+              : documentType === "quote"
+                ? "Generar cotización"
+                : "Generar catálogo"}
+          </span>
         </button>
       </div>
 
       <div className="toolbar-search">
         <Search size={16} className="search-icon" />
+
         <input
           type="search"
           placeholder="Filtrar productos..."
@@ -169,6 +230,7 @@ function ResultsToolbar({
           onChange={handleFilterChange}
           autoComplete="off"
         />
+
         {safeLocalFilter.length > 0 && (
           <button
             type="button"

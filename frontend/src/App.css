@@ -2070,7 +2070,58 @@ padding: 0.22rem 0.62rem; }
 @media (max-width: 360px) {
   .statsCards { grid-template-columns: 1fr; }
 }
+.quote-total-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 
+  min-height: 40px;
+  padding: 7px 14px;
+
+  border: 1px solid rgba(163, 230, 53, 0.35);
+  border-radius: 12px;
+
+  background: rgba(163, 230, 53, 0.08);
+
+  white-space: nowrap;
+}
+
+.quote-total-toolbar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  border-radius: 9px;
+
+  color: #a3e635;
+  background: rgba(163, 230, 53, 0.12);
+}
+
+.quote-total-toolbar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.quote-total-toolbar-content span {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  color: #94a3b8;
+}
+
+.quote-total-toolbar-content strong {
+  font-size: 17px;
+  font-weight: 800;
+
+  color: #a3e635;
+}
 /* ===== PRINT ===== */
 @media print {
   .gallery-item { width: 450px; height: 450px; page-break-inside: avoid; }

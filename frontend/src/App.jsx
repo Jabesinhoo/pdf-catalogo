@@ -538,6 +538,43 @@ function App() {
     return safeProducts.filter((p) => Boolean(p?.selected)).length;
   }, [safeProducts]);
 
+  // ===== TOTAL DE COTIZACION EN TIEMPO REAL =====
+  // Replica la misma logica de precio ajustado usada por ProductCard:
+  // precio original, luego "/" o "*" y finalmente cantidad.
+  const quoteTotal = useMemo(() => {
+    if (documentType !== "quote") return 0;
+
+    return safeProducts.reduce((acc, product) => {
+      if (!product?.selected) return acc;
+
+      const quantity = Math.max(1, Number(product?.quantity) || 1);
+      const originalPrice = parsePriceToNumber(product?.price);
+
+      const operation = String(product?.priceAdjustOp || "").trim();
+      const rawAdjustment = String(product?.priceAdjustValue || "").trim();
+
+      let unitPrice = originalPrice;
+
+      if (operation && rawAdjustment) {
+        const adjustmentValue = Number.parseFloat(rawAdjustment);
+
+        if (Number.isFinite(adjustmentValue)) {
+          if (operation === "/" && adjustmentValue !== 0) {
+            unitPrice = originalPrice / adjustmentValue;
+          } else if (operation === "*") {
+            unitPrice = originalPrice * adjustmentValue;
+          }
+        }
+      }
+
+      if (!Number.isFinite(unitPrice)) {
+        unitPrice = originalPrice;
+      }
+
+      return acc + unitPrice * quantity;
+    }, 0);
+  }, [safeProducts, documentType]);
+
   const allSelected = useMemo(() => {
     return safeProducts.length > 0 && safeProducts.every((p) => Boolean(p?.selected));
   }, [safeProducts]);
@@ -1238,6 +1275,8 @@ function App() {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onSortChange={handleSortChange}
+          quoteTotal={quoteTotal}
+          currency={quoteMeta.currency || "COP"}
         />
 
         <MassIvaEditor
