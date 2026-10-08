@@ -286,7 +286,7 @@ function buildGallery(products) {
 
 function buildQuoteHtml({ products = [], quoteMeta = {}, logoSrc = "", orientation = "portrait" }) {
   const currency = quoteMeta.currency || "COP";
-  const companyName = quoteMeta.companyName || "TECNONACHO S.A.S";
+  const companyName = quoteMeta.companyName || "DISTRIBUIDORA TECNICAL STORE S.A.S";
   const nit = quoteMeta.nit || "901.067.698-7";
 
   const issuer = String(quoteMeta.issuer || "")
