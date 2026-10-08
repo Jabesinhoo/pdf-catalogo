@@ -175,7 +175,7 @@ function buildCatalogHtml({ products, quoteMeta = {}, logoSrc = "" }) {
   const currency = quoteMeta.currency || "COP";
   const companyName =
     quoteMeta.companyName ||
-    "TECNONACHO S.A.S";
+    "DISTRIBUIDORA TECNICAL STORE S.A.S";
 
   const nit =
     quoteMeta.nit ||
