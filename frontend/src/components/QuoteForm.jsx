@@ -96,8 +96,8 @@ function QuoteForm({
                   value={data.issuer || "tecnonacho"}
                   onChange={(e) => handleChange("issuer", e.target.value)}
                 >
-                  <option value="tecnonacho">Tecnonacho</option>
-                  <option value="poweron"> Comercializadora Power ON</option>
+                  <option value="tecnonacho">DISTRIBUIDORA TECNICAL STORE S.A.S</option>
+                  <option value="poweron"> COMERCIALZIADORA POWER ON</option>
                 </select>
               </label>
             </div>
