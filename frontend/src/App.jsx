@@ -95,7 +95,7 @@ const PRODUCT_DRAFT_STORAGE_KEY = "tecnocotizador_products_draft_v1";
 
 const ISSUERS = {
   tecnonacho: {
-    companyName: "TECNONACHO S.A.S",
+    companyName: "DISTRIBUIDORA TECNICAL STORE S.A.S",
     nit: "901.067.698-7",
   },
   poweron: {
